@@ -24,7 +24,17 @@ export default function HackathonsPage() {
         </Button>
       </div>
 
-      <HackathonDemo />
+      <Card>
+        <CardHeader>
+          <CardTitle>Current Hackathons</CardTitle>
+          <CardDescription>Explore ongoing events and demos.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild variant="outline">
+            <Link href="/hackathons/demo">View Demo</Link>
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
