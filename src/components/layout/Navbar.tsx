@@ -4,11 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { GraduationCap, Trophy, Home, MessageSquarePlus } from "lucide-react";
+import { GraduationCap, Trophy, Home, MessageSquarePlus, Avatar, AvatarFallback, AvatarImage } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const links = [
   { href: "/", label: "Home", icon: Home },
   { href: "/hackathons", label: "Hackathons", icon: Trophy },
+  { href: "/pricing", label: "Pricing", icon: GraduationCap },
 ];
 
 export const Navbar = () => {
@@ -42,6 +51,30 @@ export const Navbar = () => {
             );
           })}
         </nav>
+
+        {/* Demo User Account Widget */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src="/avatar.jpg" alt="Demo User" />
+                <AvatarFallback>DU</AvatarFallback>
+              </Avatar>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56" align="end" forceMount>
+            <DropdownMenuLabel className="flex flex-col space-y-1">
+              <p className="text-sm font-medium leading-none">Demo User</p>
+              <p className="text-xs leading-none text-muted-foreground">
+                100 credits remaining
+              </p>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => console.log("Logout clicked")}>
+              Logout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );
