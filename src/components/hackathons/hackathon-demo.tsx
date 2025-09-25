@@ -459,18 +459,6 @@ export const HackathonDemo = () => {
             >
               Use Participant Demo
             </Button>
-            <Button
-              variant={currentRole === "judge" ? "default" : "outline"}
-              onClick={() => {
-                if (!selectedId || loading) return;
-                localStorage.setItem("demoRole", "judge");
-                setCurrentRole("judge");
-                quickJoin("Judge Demo", "judge");
-              }}
-              disabled={!selectedId || loading}
-            >
-              Use Judge Demo
-            </Button>
           </div>
         </CardContent>
       </Card>
@@ -830,7 +818,7 @@ export const HackathonDemo = () => {
       </Card>
 
       {/* Judging Dashboard */}
-      {(currentRole === "judge" || joinedParticipant?.role === "judge") && (
+      {currentRole === "judge" && (
         <Card>
           <CardHeader>
             <CardTitle>Judging Dashboard</CardTitle>
