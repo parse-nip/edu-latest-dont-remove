@@ -111,6 +111,14 @@ export const HackathonDemo = () => {
   const [persona, setPersona] = useState<"organizer" | "participant">("participant");
   const [rulesByHackathon, setRulesByHackathon] = useState<Record<string, string>>({});
   const [announcementsByHackathon, setAnnouncementsByHackathon] = useState<Record<string, string>>({});
+  // New: join by code + team policy and submission form state
+  const [joinCode, setJoinCode] = useState("");
+  const [teamPolicyByHackathon, setTeamPolicyByHackathon] = useState<Record<string, "open" | "preassigned">>({});
+  const [submitTeamId, setSubmitTeamId] = useState<string>("");
+  const [submitTitle, setSubmitTitle] = useState("");
+  const [submitRepo, setSubmitRepo] = useState("");
+  const [submitDemo, setSubmitDemo] = useState("");
+  const [submitDesc, setSubmitDesc] = useState("");
 
   useEffect(() => {
     const fetchHackathons = async () => {
@@ -305,6 +313,45 @@ export const HackathonDemo = () => {
   const isOrganizer = persona === "organizer" || joinedParticipant?.role === "host";
   const currentRules = rulesByHackathon[selectedId] || "";
   const currentAnnouncements = announcementsByHackathon[selectedId] || "";
+  const teamPolicy = teamPolicyByHackathon[selectedId] || "open";
+  const isPreassigned = teamPolicy === "preassigned";
+
+  // New: submit project (participant)
+  const submitProject = async () => {
+    if (!selectedId || !submitTeamId || !submitTitle) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/hackathons/${selectedId}/submissions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          team_id: parseInt(submitTeamId),
+          title: submitTitle,
+          repo_url: submitRepo || null,
+          demo_url: submitDemo || null,
+          description: submitDesc || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to submit project");
+      // clear and refresh
+      setSubmitTitle("");
+      setSubmitRepo("");
+      setSubmitDemo("");
+      setSubmitDesc("");
+      const [subsRes, lbRes] = await Promise.all([
+        fetch(`/api/hackathons/${selectedId}/submissions`, { headers: { ...authHeaders() } }),
+        fetch(`/api/hackathons/${selectedId}/leaderboard`, { headers: { ...authHeaders() } }),
+      ]);
+      if (subsRes.ok) setSubmissions(await subsRes.json());
+      if (lbRes.ok) setLeaderboard(await lbRes.json());
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -403,6 +450,15 @@ export const HackathonDemo = () => {
               Join
             </Button>
           </div>
+          {/* Join by Code (Schools share a code) */}
+          <div className="sm:col-span-3 grid gap-2">
+            <label className="mb-1 block text-sm font-medium">Join Code</label>
+            <div className="flex gap-2">
+              <Input value={joinCode} onChange={(e) => setJoinCode(e.target.value)} placeholder="Enter code from your school" />
+              <Button variant="outline" disabled={!joinCode || !selectedId}>Apply Code</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Students receive a code to join. In this demo, select a hackathon above and use any code to simulate.</p>
+          </div>
           {joinedParticipant && (
             <div className="sm:col-span-3 text-sm text-muted-foreground">
               Joined as <span className="font-medium text-foreground">{joinedParticipant.displayName}</span> (ID {joinedParticipant.id}, role {joinedParticipant.role})
@@ -418,10 +474,30 @@ export const HackathonDemo = () => {
           <CardDescription>Create or join a team in the selected hackathon.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Organizer team policy control */}
+          {isOrganizer ? (
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div className="text-sm font-medium">Team Policy</div>
+              <div className="flex items-center gap-2">
+                <FallbackSelect
+                  value={teamPolicy}
+                  onValueChange={(v) => setTeamPolicyByHackathon((p) => ({ ...p, [selectedId]: v as any }))}
+                  options={[
+                    { label: "Open (students can create/join)", value: "open" },
+                    { label: "Preassigned (students cannot create/join)", value: "preassigned" },
+                  ]}
+                />
+                <Badge variant="outline" className="whitespace-nowrap">{teamPolicy === "open" ? "Open" : "Preassigned"}</Badge>
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground">Team policy set by organizer: <span className="font-medium text-foreground">{teamPolicy === "open" ? "Open" : "Preassigned"}</span></div>
+          )}
+
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="sm:col-span-2 flex gap-2">
               <Input placeholder="Team name" value={teamName} onChange={(e) => setTeamName(e.target.value)} />
-              <Button onClick={createTeam} disabled={!teamName || !selectedId}>Create Team</Button>
+              <Button onClick={createTeam} disabled={!teamName || !selectedId || (isPreassigned && !isOrganizer)}>Create Team</Button>
             </div>
             <div className="sm:col-span-1 flex gap-2">
               <FallbackSelect
@@ -430,7 +506,7 @@ export const HackathonDemo = () => {
                 placeholder="Select team"
                 options={teams.map((t) => ({ label: t.name, value: String(t.id) }))}
               />
-              <Button variant="outline" onClick={joinTeam} disabled={!teamJoinId || !joinedParticipant}>
+              <Button variant="outline" onClick={joinTeam} disabled={!teamJoinId || !joinedParticipant || (isPreassigned && !isOrganizer)}>
                 Join Team
               </Button>
             </div>
@@ -461,6 +537,52 @@ export const HackathonDemo = () => {
               </TableBody>
             </Table>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Submit Project (Participants) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Submit Project</CardTitle>
+          <CardDescription>Participants submit once their project is ready.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!isOrganizer ? (
+            <div className="grid gap-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium">Team</label>
+                <FallbackSelect
+                  value={submitTeamId}
+                  onValueChange={setSubmitTeamId}
+                  placeholder="Select your team"
+                  options={teams.map((t) => ({ label: t.name, value: String(t.id) }))}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Project Title</label>
+                <Input value={submitTitle} onChange={(e) => setSubmitTitle(e.target.value)} placeholder="e.g. Campus Navigator" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm">Repository URL</label>
+                  <Input value={submitRepo} onChange={(e) => setSubmitRepo(e.target.value)} placeholder="https://github.com/..." />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm">Demo URL</label>
+                  <Input value={submitDemo} onChange={(e) => setSubmitDemo(e.target.value)} placeholder="https://demo.example.com" />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm">Description</label>
+                <Textarea value={submitDesc} onChange={(e) => setSubmitDesc(e.target.value)} placeholder="Brief overview of your project" className="min-h-24" />
+              </div>
+              <div>
+                <Button onClick={submitProject} disabled={!submitTeamId || !submitTitle || !selectedId}>Submit</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-md border p-3 text-sm text-muted-foreground">Participants see a friendly submit form here. Switch to Participant demo to view.</div>
+          )}
         </CardContent>
       </Card>
 
@@ -517,10 +639,10 @@ export const HackathonDemo = () => {
         </CardContent>
       </Card>
 
-      {/* Judges & Scoring */}
+      {/* Judging Panel */}
       <Card>
         <CardHeader>
-          <CardTitle>Judges & Scoring</CardTitle>
+          <CardTitle>Judging Panel</CardTitle>
           <CardDescription>Add judges and submit scores for submissions.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
