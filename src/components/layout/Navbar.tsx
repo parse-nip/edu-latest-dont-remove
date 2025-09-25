@@ -1,10 +1,10 @@
 "use client"
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { GraduationCap, Trophy, Home, HelpCircle } from "lucide-react";
+import { GraduationCap, Trophy, Home } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -14,16 +14,39 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-const links = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/hackathons", label: "Hackathons", icon: Trophy },
-  { href: "/hackathons/demo", label: "Demo", icon: HelpCircle },
-  { href: "/pricing", label: "Pricing", icon: GraduationCap },
-];
+import { useEffect, useState } from "react";
 
 export const Navbar = () => {
   const pathname = usePathname();
+  const router = useRouter();
+  const [authState, setAuthState] = useState<"logged_in" | "logged_out">("logged_in");
+
+  useEffect(() => {
+    const stored = (typeof window !== "undefined" && localStorage.getItem("demoAuth")) as
+      | "logged_in"
+      | "logged_out"
+      | null;
+    setAuthState(stored ?? "logged_in");
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "demoAuth") {
+        setAuthState((e.newValue as any) ?? "logged_in");
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const dynamicLinks = (() => {
+    const base: { href: string; label: string; icon: any }[] = [{ href: "/", label: "Home", icon: Home }];
+    if (authState === "logged_in") {
+      base.push({ href: "/hackathons", label: "Hackathons", icon: Trophy });
+      return base;
+    }
+    // logged_out
+    base.push({ href: "/pricing", label: "Pricing", icon: GraduationCap });
+    return base;
+  })();
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -34,7 +57,7 @@ export const Navbar = () => {
         </Link>
 
         <nav className="hidden gap-1 md:flex">
-          {links.map(({ href, label, icon: Icon }) => {
+          {dynamicLinks.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
             return (
               <Link
@@ -72,7 +95,20 @@ export const Navbar = () => {
               </p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => console.log("Logout clicked")}>
+            <DropdownMenuItem asChild>
+              <Link href="/profile">Profile</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/settings">Settings</Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                localStorage.setItem("demoAuth", "logged_out");
+                setAuthState("logged_out");
+                router.push("/");
+              }}
+            >
               Logout
             </DropdownMenuItem>
           </DropdownMenuContent>

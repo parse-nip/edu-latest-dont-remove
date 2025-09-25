@@ -31,7 +31,7 @@ export default function HackathonsPage() {
         </CardHeader>
         <CardContent>
           <Button asChild variant="outline">
-            <Link href="/hackathons/demo">View Demo</Link>
+            <Link href="/hackathons/demo_hackathon">View Demo</Link>
           </Button>
         </CardContent>
       </Card>

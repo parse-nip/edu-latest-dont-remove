@@ -10,11 +10,14 @@ import { useRouter } from "next/navigation"
 
 export default function SettingsPage() {
   const [role, setRole] = useState<string>("participant")
+  const [authState, setAuthState] = useState<"logged_in" | "logged_out">("logged_in")
   const router = useRouter()
 
   useEffect(() => {
     const savedRole = localStorage.getItem("demoRole") || "participant"
     setRole(savedRole)
+    const savedAuth = (localStorage.getItem("demoAuth") as "logged_in" | "logged_out" | null) || "logged_in"
+    setAuthState(savedAuth)
   }, [])
 
   const handleRoleChange = (value: string) => {
@@ -22,8 +25,19 @@ export default function SettingsPage() {
     localStorage.setItem("demoRole", value)
   }
 
+  const handleAuthChange = (value: "logged_in" | "logged_out") => {
+    setAuthState(value)
+    localStorage.setItem("demoAuth", value)
+    // Optional UX: navigate to relevant area based on state
+    if (value === "logged_in") {
+      router.push("/hackathons")
+    } else {
+      router.push("/")
+    }
+  }
+
   const handleBack = () => {
-    router.push("/hackathons/demo")
+    router.push("/hackathons/demo_hackathon")
   }
 
   return (
@@ -35,7 +49,23 @@ export default function SettingsPage() {
             Demo Settings
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="auth">Auth state (temporary)</Label>
+            <Select value={authState} onValueChange={(v) => handleAuthChange(v as any)}>
+              <SelectTrigger id="auth">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="logged_in">Logged in</SelectItem>
+                <SelectItem value="logged_out">Logged out</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground">
+              Controls which nav items are visible. Logged out shows Home and Pricing; Logged in shows Home and Hackathons.
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="role">Choose your role</Label>
             <Select value={role} onValueChange={handleRoleChange}>
@@ -51,6 +81,7 @@ export default function SettingsPage() {
               This sets your view in the hackathon demo. Changes are saved locally.
             </p>
           </div>
+
           <Button onClick={handleBack} className="w-full">
             Back to Demo
           </Button>
