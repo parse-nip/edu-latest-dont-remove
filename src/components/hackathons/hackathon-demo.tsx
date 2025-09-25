@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { Textarea } from "@/components/ui/textarea";
 
 // Fallbacks if some UI pieces are missing in the codebase
 // If Select doesn't exist, we provide a basic fallback using native <select>
@@ -105,6 +106,11 @@ export const HackathonDemo = () => {
   const [scoreSubmissionId, setScoreSubmissionId] = useState<string>("");
   const [judgeIdForScore, setJudgeIdForScore] = useState<string>("");
   const [scoresForm, setScoresForm] = useState({ innovation: "8", impact: "8", technical: "8" });
+
+  // Demo personas and simple rules/announcements (client-only demo state)
+  const [persona, setPersona] = useState<"organizer" | "participant">("participant");
+  const [rulesByHackathon, setRulesByHackathon] = useState<Record<string, string>>({});
+  const [announcementsByHackathon, setAnnouncementsByHackathon] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const fetchHackathons = async () => {
@@ -273,8 +279,69 @@ export const HackathonDemo = () => {
     }
   };
 
+  const quickJoin = async (name: string, r: "participant" | "judge" | "host") => {
+    if (!selectedId) return;
+    setDisplayName(name);
+    setRole(r);
+    setPersona(r === "host" ? "organizer" : "participant");
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/hackathons/${selectedId}/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ display_name: name, role: r }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to join");
+      setJoinedParticipant(data);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isOrganizer = persona === "organizer" || joinedParticipant?.role === "host";
+  const currentRules = rulesByHackathon[selectedId] || "";
+  const currentAnnouncements = announcementsByHackathon[selectedId] || "";
+
   return (
     <div className="space-y-6">
+      {/* Persona Switch */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Demo Personas</CardTitle>
+          <CardDescription>
+            Switch between Organizer and Participant to see gated actions. These are client-side demo accounts only.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">Current: {isOrganizer ? "Organizer" : "Participant"}</Badge>
+            {selectedId && (
+              <span className="text-sm text-muted-foreground">Hackathon #{selectedId}</span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant={isOrganizer ? "default" : "outline"}
+              onClick={() => quickJoin("Organizer Demo", "host")}
+              disabled={!selectedId || loading}
+            >
+              Use Organizer Demo
+            </Button>
+            <Button
+              variant={!isOrganizer ? "default" : "outline"}
+              onClick={() => quickJoin("Participant Demo", "participant")}
+              disabled={!selectedId || loading}
+            >
+              Use Participant Demo
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Hackathon Demo</CardTitle>
@@ -397,6 +464,59 @@ export const HackathonDemo = () => {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Rules & Announcements</CardTitle>
+          <CardDescription>
+            {isOrganizer ? "Organizers can edit these fields for the selected hackathon." : "Read-only for participants in this demo."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <label className="mb-1 block text-sm font-medium">Rules</label>
+            {isOrganizer ? (
+              <Textarea
+                placeholder="Add rules here..."
+                value={currentRules}
+                onChange={(e) =>
+                  setRulesByHackathon((prev) => ({ ...prev, [selectedId]: e.target.value }))
+                }
+                className="min-h-28"
+              />
+            ) : (
+              <div className="rounded-md border p-3 text-sm text-muted-foreground whitespace-pre-wrap min-h-14">
+                {currentRules || "No rules added yet."}
+              </div>
+            )}
+          </div>
+          <div className="space-y-2">
+            <label className="mb-1 block text-sm font-medium">Announcements</label>
+            {isOrganizer ? (
+              <Textarea
+                placeholder="Post announcements here..."
+                value={currentAnnouncements}
+                onChange={(e) =>
+                  setAnnouncementsByHackathon((prev) => ({ ...prev, [selectedId]: e.target.value }))
+                }
+                className="min-h-28"
+              />
+            ) : (
+              <div className="rounded-md border p-3 text-sm text-muted-foreground whitespace-pre-wrap min-h-14">
+                {currentAnnouncements || "No announcements yet."}
+              </div>
+            )}
+          </div>
+          {isOrganizer && (
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">Changes auto-save in this demo.</div>
+              <div className="text-xs text-muted-foreground">
+                Invite link: <span className="font-mono">/hackathons/{selectedId}?invite=demo</span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Judges & Scoring */}
       <Card>
         <CardHeader>
@@ -407,8 +527,13 @@ export const HackathonDemo = () => {
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="sm:col-span-2 flex gap-2">
               <Input placeholder="Judge name" value={judgeName} onChange={(e) => setJudgeName(e.target.value)} />
-              <Button onClick={addJudge} disabled={!judgeName || !selectedId}>Add Judge</Button>
+              <Button onClick={addJudge} disabled={!judgeName || !selectedId || !isOrganizer}>Add Judge</Button>
             </div>
+            {!isOrganizer && (
+              <div className="sm:col-span-1 text-sm text-muted-foreground">
+                Only organizers can add judges in this demo.
+              </div>
+            )}
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -447,44 +572,50 @@ export const HackathonDemo = () => {
 
             <div className="space-y-3">
               <div className="text-sm font-medium">Score Selected Submission</div>
-              <div className="grid gap-2">
-                <div>
-                  <label className="mb-1 block text-sm">Submission ID</label>
-                  <Input value={scoreSubmissionId} onChange={(e) => setScoreSubmissionId(e.target.value)} placeholder="e.g. 1" />
+              {!isOrganizer ? (
+                <div className="rounded-md border p-3 text-sm text-muted-foreground">
+                  Only organizers can submit scores in this demo.
                 </div>
-                <div>
-                  <label className="mb-1 block text-sm">Judge</label>
-                  <FallbackSelect
-                    value={judgeIdForScore}
-                    onValueChange={setJudgeIdForScore}
-                    placeholder="Select judge"
-                    options={judges.map((j) => ({ label: `${j.name} (#${j.id})`, value: String(j.id) }))}
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-2">
+              ) : (
+                <div className="grid gap-2">
                   <div>
-                    <label className="mb-1 block text-xs">Innovation (1-10)</label>
-                    <Input
-                      value={scoresForm.innovation}
-                      onChange={(e) => setScoresForm((p) => ({ ...p, innovation: e.target.value }))}
+                    <label className="mb-1 block text-sm">Submission ID</label>
+                    <Input value={scoreSubmissionId} onChange={(e) => setScoreSubmissionId(e.target.value)} placeholder="e.g. 1" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm">Judge</label>
+                    <FallbackSelect
+                      value={judgeIdForScore}
+                      onValueChange={setJudgeIdForScore}
+                      placeholder="Select judge"
+                      options={judges.map((j) => ({ label: `${j.name} (#${j.id})`, value: String(j.id) }))}
                     />
                   </div>
-                  <div>
-                    <label className="mb-1 block text-xs">Impact (1-10)</label>
-                    <Input value={scoresForm.impact} onChange={(e) => setScoresForm((p) => ({ ...p, impact: e.target.value }))} />
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="mb-1 block text-xs">Innovation (1-10)</label>
+                      <Input
+                        value={scoresForm.innovation}
+                        onChange={(e) => setScoresForm((p) => ({ ...p, innovation: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs">Impact (1-10)</label>
+                      <Input value={scoresForm.impact} onChange={(e) => setScoresForm((p) => ({ ...p, impact: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs">Technical (1-10)</label>
+                      <Input
+                        value={scoresForm.technical}
+                        onChange={(e) => setScoresForm((p) => ({ ...p, technical: e.target.value }))}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="mb-1 block text-xs">Technical (1-10)</label>
-                    <Input
-                      value={scoresForm.technical}
-                      onChange={(e) => setScoresForm((p) => ({ ...p, technical: e.target.value }))}
-                    />
+                  <div className="pt-2">
+                    <Button onClick={submitScores} disabled={!scoreSubmissionId || !judgeIdForScore}>Submit Scores</Button>
                   </div>
                 </div>
-                <div className="pt-2">
-                  <Button onClick={submitScores} disabled={!scoreSubmissionId || !judgeIdForScore}>Submit Scores</Button>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </CardContent>
