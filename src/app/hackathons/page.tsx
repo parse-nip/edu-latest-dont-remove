@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { CalendarDays, Clock, Users, Trophy, UploadCloud, Megaphone, Gavel, Scale } from "lucide-react";
 import Link from "next/link";
+import { HackathonDemo } from "@/components/hackathons/hackathon-demo";
 
 export default function HackathonsPage() {
   // ... keep existing data arrays (upcoming, active, etc.) but they'll be used in detail pages ...
@@ -38,6 +39,10 @@ export default function HackathonsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="mt-8">
+        <HackathonDemo />
+      </div>
 
       {/* Later: Dynamic list from DB */}
       {/* <div className="grid gap-6 md:grid-cols-2">
