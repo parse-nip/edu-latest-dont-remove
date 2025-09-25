@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { GraduationCap, Trophy, Home } from "lucide-react";
+import { GraduationCap, Trophy, Home, HelpCircle } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -18,6 +18,7 @@ import {
 const links = [
   { href: "/", label: "Home", icon: Home },
   { href: "/hackathons", label: "Hackathons", icon: Trophy },
+  { href: "/hackathons/demo", label: "Demo", icon: HelpCircle },
   { href: "/pricing", label: "Pricing", icon: GraduationCap },
 ];
 
