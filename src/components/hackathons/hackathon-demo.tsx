@@ -35,9 +35,6 @@ function FallbackSelect(props: {
   );
 }
 
-// Try to detect if shadcn Select exists; otherwise use fallback
-const HasSelect = !!Select && !!SelectTrigger && !!SelectContent && !!SelectItem && !!SelectValue;
-
 type Hackathon = {
   id: number;
   name: string;
