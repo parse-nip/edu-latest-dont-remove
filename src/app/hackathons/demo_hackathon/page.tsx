@@ -1,9 +1,9 @@
-import { HackathonPlatform } from "@/components/demos/hackathon-platform";
+import { HackathonDemo } from "@/components/hackathons/hackathon-demo";
 
 export default function DemoHackathonPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <HackathonPlatform />
+      <HackathonDemo />
     </div>
   );
 }
