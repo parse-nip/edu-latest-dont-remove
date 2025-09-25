@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { GraduationCap, Trophy, Home, MessageSquarePlus, Avatar, AvatarFallback, AvatarImage } from "lucide-react";
+import { GraduationCap, Trophy, Home } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
