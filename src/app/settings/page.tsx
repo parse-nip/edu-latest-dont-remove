@@ -75,6 +75,7 @@ export default function SettingsPage() {
               <SelectContent>
                 <SelectItem value="participant">Participant (Student View)</SelectItem>
                 <SelectItem value="organizer">Organizer (Admin Dashboard)</SelectItem>
+                <SelectItem value="judge">Judge (Review Projects)</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-sm text-muted-foreground">

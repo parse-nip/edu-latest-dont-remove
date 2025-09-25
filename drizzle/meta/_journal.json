@@ -8,6 +8,13 @@
       "when": 1758802788276,
       "tag": "0000_secret_skrulls",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1758810742072,
+      "tag": "0001_remarkable_squirrel_girl",
+      "breakpoints": true
     }
   ]
 }

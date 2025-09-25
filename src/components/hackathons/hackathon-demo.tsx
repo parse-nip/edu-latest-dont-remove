@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 // Fallbacks if some UI pieces are missing in the codebase
 // If Select doesn't exist, we provide a basic fallback using native <select>
@@ -72,6 +73,22 @@ type LeaderboardRow = {
   totalScore: number;
 };
 
+type Review = {
+  id: number;
+  rating: number;
+  comments?: string | null;
+  createdAt: number;
+  submissionId: number;
+  title: string;
+  judgeId: number;
+  judgeName: string;
+  submissionAverageRating: number;
+};
+
+type EnhancedSubmission = Submission & {
+  avgRating: number;
+};
+
 function authHeaders() {
   const token = typeof window !== "undefined" ? localStorage.getItem("bearer_token") : null;
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -93,6 +110,12 @@ export const HackathonDemo = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [judges, setJudges] = useState<Judge[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
+  const [currentRole, setCurrentRole] = useState<string>("participant");
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [selectedJudgeId, setSelectedJudgeId] = useState<string>("");
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<number | null>(null);
+  const [ratingForm, setRatingForm] = useState({ rating: "", comments: "" });
 
   // Local state for actions
   const [displayName, setDisplayName] = useState("");
@@ -144,28 +167,39 @@ export const HackathonDemo = () => {
     if (!selectedId) return;
     const load = async () => {
       try {
-        const [teamsRes, subsRes, judgesRes, lbRes] = await Promise.all([
+        const [teamsRes, subsRes, judgesRes, lbRes, reviewsRes] = await Promise.all([
           fetch(`/api/hackathons/${selectedId}/teams`, { headers: { ...authHeaders() } }),
           fetch(`/api/hackathons/${selectedId}/submissions`, { headers: { ...authHeaders() } }),
           fetch(`/api/hackathons/${selectedId}/judges`, { headers: { ...authHeaders() } }),
           fetch(`/api/hackathons/${selectedId}/leaderboard`, { headers: { ...authHeaders() } }),
+          fetch(`/api/hackathons/${selectedId}/reviews`, { headers: { ...authHeaders() } }),
         ]);
-        const [teamsJson, subsJson, judgesJson, lbJson] = await Promise.all([
+        const [teamsJson, subsJson, judgesJson, lbJson, reviewsJson] = await Promise.all([
           teamsRes.json(),
           subsRes.json(),
           judgesRes.json(),
           lbRes.json(),
+          reviewsRes.json(),
         ]);
         if (teamsRes.ok) setTeams(teamsJson);
-        if (subsRes.ok) setSubmissions(subsJson);
+        if (subsRes.ok) {
+          // Type assertion since API now includes avgRating
+          setSubmissions(subsJson as EnhancedSubmission[]);
+        }
         if (judgesRes.ok) setJudges(judgesJson);
         if (lbRes.ok) setLeaderboard(lbJson);
+        if (reviewsRes.ok) setReviews(reviewsJson);
       } catch (e) {
         // ignore soft failures
       }
     };
     load();
   }, [selectedId]);
+
+  useEffect(() => {
+    const savedRole = localStorage.getItem("demoRole") || "participant";
+    setCurrentRole(savedRole);
+  }, []);
 
   const joinHackathon = async () => {
     if (!selectedId || !displayName) return;
@@ -310,11 +344,51 @@ export const HackathonDemo = () => {
     }
   };
 
+  const submitReview = async () => {
+    if (!selectedSubmissionId || !selectedJudgeId || !ratingForm.rating) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          submission_id: selectedSubmissionId,
+          judge_id: parseInt(selectedJudgeId),
+          rating: parseInt(ratingForm.rating),
+          comments: ratingForm.comments || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to submit review");
+      // Clear form and close modal
+      setRatingForm({ rating: "", comments: "" });
+      setShowRatingModal(false);
+      setSelectedSubmissionId(null);
+      // Refresh data
+      const [subsRes, reviewsRes] = await Promise.all([
+        fetch(`/api/hackathons/${selectedId}/submissions`, { headers: { ...authHeaders() } }),
+        fetch(`/api/hackathons/${selectedId}/reviews`, { headers: { ...authHeaders() } }),
+      ]);
+      if (subsRes.ok) setSubmissions(await subsRes.json() as EnhancedSubmission[]);
+      if (reviewsRes.ok) setReviews(await reviewsRes.json());
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const isOrganizer = persona === "organizer" || joinedParticipant?.role === "host";
   const currentRules = rulesByHackathon[selectedId] || "";
   const currentAnnouncements = announcementsByHackathon[selectedId] || "";
   const teamPolicy = teamPolicyByHackathon[selectedId] || "open";
   const isPreassigned = teamPolicy === "preassigned";
+
+  // Function to check if submission is reviewed by selected judge
+  const isReviewed = (submissionId: number, judgeId: number) => {
+    return reviews.some(r => r.submissionId === submissionId && r.judgeId === judgeId);
+  };
 
   // New: submit project (participant)
   const submitProject = async () => {
@@ -742,6 +816,129 @@ export const HackathonDemo = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Judging Dashboard */}
+      {currentRole === "judge" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Judging Dashboard</CardTitle>
+            <CardDescription>Review all project submissions and leave ratings (1-10) with optional comments.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium">Select Judge</label>
+                <FallbackSelect
+                  value={selectedJudgeId}
+                  onValueChange={setSelectedJudgeId}
+                  placeholder="Choose judge profile"
+                  options={judges.map((j) => ({ label: j.name, value: String(j.id) }))}
+                />
+              </div>
+              {selectedJudgeId && (
+                <div className="flex items-end">
+                  <Badge variant="secondary">Reviewing as: {judges.find(j => String(j.id) === selectedJudgeId)?.name}</Badge>
+                </div>
+              )}
+            </div>
+
+            {selectedJudgeId ? (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="text-right">Avg Rating</TableHead>
+                      <TableHead>Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {submissions.map((s) => {
+                      const reviewed = isReviewed(s.id, parseInt(selectedJudgeId));
+                      return (
+                        <TableRow key={s.id}>
+                          <TableCell className="font-medium">{s.title}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">{s.description || "No description"}</TableCell>
+                          <TableCell className="text-right">{s.avgRating ? `${s.avgRating}/10` : "N/A"}</TableCell>
+                          <TableCell>
+                            <Dialog open={showRatingModal && selectedSubmissionId === s.id} onOpenChange={() => {
+                              if (!showRatingModal || selectedSubmissionId !== s.id) return;
+                              setShowRatingModal(false);
+                              setSelectedSubmissionId(null);
+                              setRatingForm({ rating: "", comments: "" });
+                            }}>
+                              <DialogTrigger asChild>
+                                <Button
+                                  variant={reviewed ? "outline" : "default"}
+                                  size="sm"
+                                  disabled={!selectedJudgeId}
+                                  onClick={() => {
+                                    setSelectedSubmissionId(s.id);
+                                    setShowRatingModal(true);
+                                    // Preload existing if reviewed
+                                    const existing = reviews.find(r => r.submissionId === s.id && r.judgeId === parseInt(selectedJudgeId));
+                                    if (existing) {
+                                      setRatingForm({ rating: String(existing.rating), comments: existing.comments || "" });
+                                    }
+                                  }}
+                                >
+                                  {reviewed ? "Update Rating" : "Rate Project"}
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="sm:max-w-md">
+                                <DialogHeader>
+                                  <DialogTitle>Rate {s.title}</DialogTitle>
+                                  <DialogDescription>Provide your rating (1-10) and optional comments.</DialogDescription>
+                                </DialogHeader>
+                                <div className="grid gap-4 py-4">
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-medium">Rating (1-10)</label>
+                                    <FallbackSelect
+                                      value={ratingForm.rating}
+                                      onValueChange={(v) => setRatingForm(p => ({ ...p, rating: v }))}
+                                      options={Array.from({ length: 10 }, (_, i) => ({ label: `${i + 1}`, value: String(i + 1) }))}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-medium">Comments (Optional)</label>
+                                    <Textarea
+                                      value={ratingForm.comments}
+                                      onChange={(e) => setRatingForm(p => ({ ...p, comments: e.target.value }))}
+                                      placeholder="Your feedback..."
+                                      className="min-h-24"
+                                    />
+                                  </div>
+                                </div>
+                                <DialogFooter>
+                                  <Button type="submit" onClick={submitReview} disabled={!ratingForm.rating || loading}>
+                                    {reviewed ? "Update" : "Submit Rating"}
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {submissions.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground text-sm">
+                          No submissions to review yet
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                Select a judge profile above to start reviewing submissions.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Leaderboard */}
       <Card>

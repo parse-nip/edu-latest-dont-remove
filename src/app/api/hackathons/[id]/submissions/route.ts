@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { hackathons, submissions, scores } from '@/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { hackathons, submissions, scores, reviews } from '@/db/schema';
+import { eq, sql, avg } from 'drizzle-orm';
 
 export async function GET(
   request: NextRequest,
@@ -31,7 +31,7 @@ export async function GET(
       }, { status: 404 });
     }
 
-    // Get submissions with aggregate scores
+    // Get submissions with aggregate scores and average ratings from reviews
     const submissionsWithScores = await db
       .select({
         id: submissions.id,
@@ -41,10 +41,12 @@ export async function GET(
         demoUrl: submissions.demoUrl,
         description: submissions.description,
         avgScore: sql<number>`COALESCE(AVG(CAST(${scores.score} AS REAL)), 0)`.as('avgScore'),
-        totalScore: sql<number>`COALESCE(SUM(${scores.score}), 0)`.as('totalScore')
+        totalScore: sql<number>`COALESCE(SUM(${scores.score}), 0)`.as('totalScore'),
+        avgRating: sql<number>`COALESCE(AVG(CAST(${reviews.rating} AS REAL)), 0)`.as('avgRating')
       })
       .from(submissions)
       .leftJoin(scores, eq(submissions.id, scores.submissionId))
+      .leftJoin(reviews, eq(submissions.id, reviews.submissionId))
       .where(eq(submissions.hackathonId, parseInt(hackathonId)))
       .groupBy(
         submissions.id,
@@ -56,7 +58,20 @@ export async function GET(
       )
       .orderBy(sql`totalScore DESC`);
 
-    return NextResponse.json(submissionsWithScores, { status: 200 });
+    // Format the results with proper number conversion
+    const formattedSubmissions = submissionsWithScores.map(item => ({
+      id: item.id,
+      title: item.title,
+      teamId: item.teamId,
+      repoUrl: item.repoUrl,
+      demoUrl: item.demoUrl,
+      description: item.description,
+      avgScore: Number(item.avgScore),
+      totalScore: Number(item.totalScore),
+      avgRating: Math.round(Number(item.avgRating) * 100) / 100
+    }));
+
+    return NextResponse.json(formattedSubmissions, { status: 200 });
 
   } catch (error) {
     console.error('GET error:', error);

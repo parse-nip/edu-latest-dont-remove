@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, integer, text, unique } from 'drizzle-orm/sqlite-core';
 
 export const hackathons = sqliteTable('hackathons', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -59,3 +59,14 @@ export const scores = sqliteTable('scores', {
   score: integer('score').notNull(),
   createdAt: integer('created_at').notNull(),
 });
+
+export const reviews = sqliteTable('reviews', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  submissionId: integer('submission_id').references(() => submissions.id).notNull(),
+  judgeId: integer('judge_id').references(() => judges.id).notNull(),
+  rating: integer('rating').notNull(),
+  comments: text('comments'),
+  createdAt: integer('created_at').notNull(),
+}, (table) => ({
+  uniqueReview: unique().on(table.submissionId, table.judgeId),
+}));
