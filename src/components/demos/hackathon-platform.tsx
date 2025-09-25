@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -110,6 +110,23 @@ export const HackathonPlatform: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"participant" | "admin">(
     "participant"
   );
+  const [currentRole, setCurrentRole] = useState<string>("participant");
+  
+  // Read role from localStorage on mount
+  useEffect(() => {
+    try {
+      const role = localStorage.getItem("demoRole") || "participant";
+      setCurrentRole(role);
+    } catch {}
+  }, []);
+
+  // Enforce non-admin tab when not organizer
+  useEffect(() => {
+    if (currentRole !== "organizer" && activeTab === "admin") {
+      setActiveTab("participant");
+    }
+  }, [currentRole, activeTab]);
+
   const [hackathonData, setHackathonData] = useState<HackathonData>({
     name: "TechHack 2024",
     description: "Build the future with cutting-edge technology",
@@ -881,18 +898,22 @@ export const HackathonPlatform: React.FC = () => {
           }
           className="w-full"
         >
-          <TabsList className="grid w-full grid-cols-2 mb-8">
+          <TabsList className="grid w-full mb-8" style={{ gridTemplateColumns: currentRole === "organizer" ? "1fr 1fr" : "1fr" }}>
             <TabsTrigger value="participant">Participant View</TabsTrigger>
-            <TabsTrigger value="admin">Admin Dashboard</TabsTrigger>
+            {currentRole === "organizer" && (
+              <TabsTrigger value="admin">Admin Dashboard</TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="participant">
             <ParticipantView />
           </TabsContent>
 
-          <TabsContent value="admin">
-            <AdminView />
-          </TabsContent>
+          {currentRole === "organizer" && (
+            <TabsContent value="admin">
+              <AdminView />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>
