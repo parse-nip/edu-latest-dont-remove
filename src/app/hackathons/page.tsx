@@ -12,52 +12,19 @@ import Link from "next/link";
 import { HackathonDemo } from "@/components/hackathons/hackathon-demo";
 
 export default function HackathonsPage() {
-  // ... keep existing data arrays (upcoming, active, etc.) but they'll be used in detail pages ...
-
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">My Hackathons</h1>
-          <p className="text-muted-foreground">Create and manage your events. Authenticate later to personalize.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Hackathons</h1>
+          <p className="text-muted-foreground">Join events, manage teams, and experience the full flow.</p>
         </div>
         <Button asChild>
           <Link href="/hackathons/create">Create New Hackathon</Link>
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Your Events</CardTitle>
-          <CardDescription>Organized or joined hackathons appear here (placeholder).</CardDescription>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="text-center py-12 text-muted-foreground">
-            <Trophy className="mx-auto h-12 w-12 mb-4" />
-            <h3 className="font-semibold mb-2">No hackathons yet</h3>
-            <p>Create your first event to get started—set up dates, rules, and invite participants.</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="mt-8">
-        <HackathonDemo />
-      </div>
-
-      {/* Later: Dynamic list from DB */}
-      {/* <div className="grid gap-6 md:grid-cols-2">
-        {userHackathons.map(h => (
-          <Card key={h.id}>
-            <CardHeader>
-              <CardTitle>{h.name}</CardTitle>
-              <CardDescription>{h.status}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button variant="outline" asChild><Link href={`/hackathons/${h.id}`}>Manage</Link></Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div> */}
+      <HackathonDemo />
     </div>
   );
 }
