@@ -214,6 +214,9 @@ export const HackathonDemo = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to join");
       setJoinedParticipant(data);
+      // Persist role and reflect immediately in UI (enables judge dashboard when role === "judge")
+      setCurrentRole(role);
+      try { localStorage.setItem("demoRole", role); } catch {}
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -458,6 +461,13 @@ export const HackathonDemo = () => {
               disabled={!selectedId || loading}
             >
               Use Participant Demo
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => quickJoin("Judge Demo", "judge")}
+              disabled={!selectedId || loading}
+            >
+              Use Judge Demo
             </Button>
           </div>
         </CardContent>
@@ -818,7 +828,7 @@ export const HackathonDemo = () => {
       </Card>
 
       {/* Judging Dashboard */}
-      {currentRole === "judge" && (
+      {(currentRole === "judge" || joinedParticipant?.role === "judge") && (
         <Card>
           <CardHeader>
             <CardTitle>Judging Dashboard</CardTitle>
