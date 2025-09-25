@@ -151,6 +151,7 @@ const hackathonPlans: HackathonPlan[] = [
       "$3 per additional user past 100"
     ],
     buttonText: "Choose Many Hackathons",
+    popular: true,
     additionalCost: "$3 per user past 100"
   },
   {
@@ -327,7 +328,18 @@ export function AIPoweredPricing({ className }: AIPoweredPricingProps) {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                 >
-                  <Card className="h-full">
+                  <Card className={cn(
+                    "h-full",
+                    plan.popular && "border-primary shadow-lg ring-1 ring-primary/20"
+                  )}>
+                    {plan.popular && (
+                      <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                        <span className="bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm font-medium">
+                          Most Popular
+                        </span>
+                      </div>
+                    )}
+                    
                     <CardHeader className="text-center pb-4">
                       <CardTitle className="text-xl">{plan.name}</CardTitle>
                       <CardDescription>{plan.description}</CardDescription>
@@ -352,7 +364,13 @@ export function AIPoweredPricing({ className }: AIPoweredPricingProps) {
                     </CardHeader>
 
                     <CardContent className="pt-0">
-                      <Button className="w-full mb-6">
+                      <Button 
+                        className={cn(
+                          "w-full mb-6",
+                          plan.popular ? "bg-primary hover:bg-primary/90" : ""
+                        )}
+                        variant={plan.popular ? "default" : "outline"}
+                      >
                         {plan.buttonText}
                         <ArrowRight className="w-4 h-4 ml-2" />
                       </Button>
