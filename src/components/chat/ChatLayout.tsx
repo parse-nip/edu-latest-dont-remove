@@ -58,7 +58,7 @@ export function ChatLayout({ initialPrompt, children }: { initialPrompt?: string
               onSend={(content) =>
                 addMessage({ role: "user", content })
               }
-              disabled={isLoading}
+              disabled={isLoading || isInitialLoading}
             />
           </div>
         </div>

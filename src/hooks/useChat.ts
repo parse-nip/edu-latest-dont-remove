@@ -34,11 +34,26 @@ export function useChat(initialPrompt?: string) {
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
+  const hasAddedInitial = useRef(false);
+  const hasPendingUserMessage = useRef(false);
+  const initialTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const currentConversation = useMemo(() => 
     conversations.find(c => c.id === currentConversationId) || { messages: [] as Message[] },
     [conversations, currentConversationId]
   );
   const messages = currentConversation.messages;
+
+  // Helper to check if last message matches
+  const isDuplicateMessage = (newMessage: Message) => {
+    if (messages.length === 0) return false;
+    const lastMsg = messages[messages.length - 1];
+    return lastMsg.role === newMessage.role && 
+           (typeof lastMsg.content === 'string' && typeof newMessage.content === 'string' 
+            ? lastMsg.content === newMessage.content 
+            : JSON.stringify(lastMsg.content) === JSON.stringify(newMessage.content));
+  };
 
   useEffect(() => {
     if (!initialPrompt?.trim()) {
@@ -46,12 +61,18 @@ export function useChat(initialPrompt?: string) {
       return;
     }
 
+    if (hasAddedInitial.current || hasPendingUserMessage.current) return;
+
+    hasAddedInitial.current = true;
+
     // Immediately add user message for initial prompt
     const userMessage: Message = {
       role: "user",
       id: Date.now().toString(),
       content: initialPrompt
     };
+    if (isDuplicateMessage(userMessage)) return; // Prevent duplicate
+
     setConversations(prev => 
       prev.map(conv => 
         conv.id === currentConversationId
@@ -62,7 +83,7 @@ export function useChat(initialPrompt?: string) {
 
     // Then simulate AI response after delay
     setIsLoading(true);
-    const initialTimeout = setTimeout(() => {
+    initialTimeoutRef.current = setTimeout(() => {
       const aiResponse: Message = {
         role: "assistant",
         id: (Date.now() + 1).toString(),
@@ -78,6 +99,8 @@ export function useChat(initialPrompt?: string) {
           education: "This shows sequential simulation. Connect to real AI for dynamic processing."
         }
       };
+      if (isDuplicateMessage(aiResponse)) return; // Prevent duplicate
+
       setConversations(prev => 
         prev.map(conv => 
           conv.id === currentConversationId
@@ -87,12 +110,19 @@ export function useChat(initialPrompt?: string) {
       );
       setIsLoading(false);
       setIsInitialLoading(false);
-      clearTimeout(initialTimeout);
+      hasPendingUserMessage.current = false;
+      initialTimeoutRef.current = null;
     }, 7000);
   }, [initialPrompt, currentConversationId]);
 
   const addMessage = (message: Omit<Message, "id">) => {
+    if (message.role === "user" && (isLoading || hasPendingUserMessage.current)) {
+      return; // Ignore duplicate user messages
+    }
+
     const fullMessage: Message = { ...message, id: Date.now().toString() };
+    if (isDuplicateMessage(fullMessage)) return; // Prevent any duplicates
+
     setConversations(prev => 
       prev.map(conv => 
         conv.id === currentConversationId
@@ -101,9 +131,10 @@ export function useChat(initialPrompt?: string) {
       )
     );
 
-    if (message.role === "user" && !isLoading) {
+    if (message.role === "user") {
+      hasPendingUserMessage.current = true;
       setIsLoading(true);
-      const responseTimeout = setTimeout(() => {
+      responseTimeoutRef.current = setTimeout(() => {
         const aiResponse: Message = {
           role: "assistant",
           id: (Date.now() + 1).toString(),
@@ -119,6 +150,8 @@ export function useChat(initialPrompt?: string) {
             education: "This simulation shows sequential file processing. Integrate with AI for real changes."
           }
         };
+        if (isDuplicateMessage(aiResponse)) return; // Prevent duplicate
+
         setConversations(prev => 
           prev.map(conv => 
             conv.id === currentConversationId
@@ -127,7 +160,11 @@ export function useChat(initialPrompt?: string) {
           )
         );
         setIsLoading(false);
-        clearTimeout(responseTimeout);
+        hasPendingUserMessage.current = false;
+        if (responseTimeoutRef.current) {
+          clearTimeout(responseTimeoutRef.current);
+          responseTimeoutRef.current = null;
+        }
       }, 7000);
     }
   };
@@ -142,7 +179,31 @@ export function useChat(initialPrompt?: string) {
     };
     setConversations(prev => [...prev, newConv]);
     setCurrentConversationId(newId);
+    // Reset flags for new chat
+    hasAddedInitial.current = false;
+    hasPendingUserMessage.current = false;
+    setIsInitialLoading(false);
+    if (initialTimeoutRef.current) {
+      clearTimeout(initialTimeoutRef.current);
+      initialTimeoutRef.current = null;
+    }
+    if (responseTimeoutRef.current) {
+      clearTimeout(responseTimeoutRef.current);
+      responseTimeoutRef.current = null;
+    }
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (initialTimeoutRef.current) {
+        clearTimeout(initialTimeoutRef.current);
+      }
+      if (responseTimeoutRef.current) {
+        clearTimeout(responseTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return {
     messages,

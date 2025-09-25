@@ -60,7 +60,7 @@ export function ChatMessages({ messages, isLoading }: { messages: Message[]; isL
         {isLoading && (
           <div className="flex justify-start">
             <div className="max-w-[95%] space-y-4">
-              <TextShimmer className="text-sm">Building your app...</TextShimmer>
+              <TextShimmer className="text-sm">Processing your request...</TextShimmer>
             </div>
           </div>
         )}
