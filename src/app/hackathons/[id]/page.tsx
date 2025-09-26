@@ -15,6 +15,7 @@ import Link from "next/link"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { supabase } from "@/lib/supabase"
 import { format } from "date-fns"
+import { format } from "date-fns"
 
 interface Hackathon {
   id: string
