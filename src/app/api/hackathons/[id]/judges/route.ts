@@ -70,7 +70,7 @@ export async function POST(
     }
 
     // Get user from session
-    const { user, error: authError } = await getAuthenticatedUser(request);
+    const { user, error: authError } = await getAuthenticatedUser(cookieStore, request);
     
     if (authError || !user) {
       return NextResponse.json({

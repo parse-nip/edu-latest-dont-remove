@@ -19,7 +19,7 @@ export async function POST(
     }
 
     // Get authenticated user
-    const { user, error: authError } = await getAuthenticatedUser(request);
+    const { user, error: authError } = await getAuthenticatedUser(cookieStore, request);
     
     if (authError || !user) {
       return NextResponse.json({
