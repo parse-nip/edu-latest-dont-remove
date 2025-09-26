@@ -8,9 +8,11 @@ console.log('[SUPABASE] Initializing client with:', { supabaseUrl, hasAnonKey: !
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
-    detectSessionInUrl: true,
+    detectSessionInUrl: false,
     autoRefreshToken: true,
-    debug: true
+    debug: false,
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    storageKey: 'sb-auth-token'
   }
 })
 
