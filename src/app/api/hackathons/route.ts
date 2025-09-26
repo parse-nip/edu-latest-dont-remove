@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
     const search = searchParams.get('search');
 
+    const supabase = createServerClient();
     let query = supabase
       .from('hackathons')
       .select('*')
@@ -38,7 +39,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { user, error: authError } = await getAuthenticatedUser(request);
+    // Get user from session
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ 
+        error: "Authentication required",
+        code: "UNAUTHENTICATED" 
+      }, { status: 401 });
+    }
+
+    const token = authHeader.substring(7);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
       return NextResponse.json({ 
@@ -83,8 +94,6 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const supabase = createServerClient();
-    
     // Create hackathon
     const { data, error } = await supabase
       .from('hackathons')

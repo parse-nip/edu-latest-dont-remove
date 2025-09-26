@@ -14,7 +14,6 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     }
 
     // Check if hackathon exists
-    const supabase = createServerClient();
     const { data: hackathon, error: hackathonError } = await supabase
       .from('hackathons')
       .select('*')

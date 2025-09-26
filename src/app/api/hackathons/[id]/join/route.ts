@@ -48,7 +48,6 @@ export async function POST(
     }
 
     // Validate hackathon exists
-    const supabase = createServerClient();
     const { data: hackathon, error: hackathonError } = await supabase
       .from('hackathons')
       .select('*')

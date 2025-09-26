@@ -17,7 +17,6 @@ export async function GET(
     }
 
     // Get single hackathon by ID
-    const supabase = createServerClient();
     const { data, error } = await supabase
       .from('hackathons')
       .select('*')

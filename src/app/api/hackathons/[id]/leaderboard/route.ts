@@ -16,7 +16,6 @@ export async function GET(
     }
 
     // Check if hackathon exists
-    const supabase = createServerClient();
     const { data: hackathon, error: hackathonError } = await supabase
       .from('hackathons')
       .select('*')

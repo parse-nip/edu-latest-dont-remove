@@ -3,8 +3,17 @@ import { createServerClient, getAuthenticatedUser } from '@/lib/supabase-server'
 
 export async function POST(request: NextRequest) {
   try {
-    // Get authenticated user
-    const { user, error: authError } = await getAuthenticatedUser(request);
+    // Get user from session
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({
+        error: "Authentication required",
+        code: "UNAUTHENTICATED"
+      }, { status: 401 });
+    }
+
+    const token = authHeader.substring(7);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
       return NextResponse.json({
@@ -37,8 +46,6 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const supabase = createServerClient();
-    
     // Validate submission exists
     const { data: submission, error: submissionError } = await supabase
       .from('submissions')
