@@ -1,73 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { reviews, submissions, judges, hackathons } from '@/db/schema';
-import { eq, avg, desc } from 'drizzle-orm';
+import { supabase } from '@/lib/supabase';
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { id } = params;
 
     // Validate hackathon ID
-    if (!id || isNaN(parseInt(id))) {
+    if (!id) {
       return NextResponse.json({ 
         error: "Valid hackathon ID is required",
         code: "INVALID_ID" 
       }, { status: 400 });
     }
 
-    const hackathonId = parseInt(id);
-
     // Check if hackathon exists
-    const hackathon = await db.select()
-      .from(hackathons)
-      .where(eq(hackathons.id, hackathonId))
-      .limit(1);
+    const { data: hackathon, error: hackathonError } = await supabase
+      .from('hackathons')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    if (hackathon.length === 0) {
+    if (hackathonError || !hackathon) {
       return NextResponse.json({ 
         error: 'Hackathon not found' 
       }, { status: 404 });
     }
 
     // Get all reviews with submission and judge information
-    const reviewsWithDetails = await db.select({
-      id: reviews.id,
-      rating: reviews.rating,
-      comments: reviews.comments,
-      createdAt: reviews.createdAt,
-      submissionId: reviews.submissionId,
-      title: submissions.title,
-      judgeId: reviews.judgeId,
-      judgeName: judges.name
-    })
-    .from(reviews)
-    .innerJoin(submissions, eq(reviews.submissionId, submissions.id))
-    .innerJoin(judges, eq(reviews.judgeId, judges.id))
-    .where(eq(submissions.hackathonId, hackathonId))
-    .orderBy(desc(reviews.createdAt));
+    const { data: reviewsWithDetails, error } = await supabase
+      .from('reviews')
+      .select(`
+        id,
+        rating,
+        comments,
+        created_at,
+        submission_id,
+        judge_id,
+        submissions!inner(
+          title,
+          hackathon_id
+        ),
+        judges!inner(
+          name
+        )
+      `)
+      .eq('submissions.hackathon_id', id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('GET reviews error:', error);
+      return NextResponse.json({ 
+        error: error.message 
+      }, { status: 500 });
+    }
 
     // Calculate average rating per submission
-    const averageRatings = await db.select({
-      submissionId: reviews.submissionId,
-      averageRating: avg(reviews.rating)
-    })
-    .from(reviews)
-    .innerJoin(submissions, eq(reviews.submissionId, submissions.id))
-    .where(eq(submissions.hackathonId, hackathonId))
-    .groupBy(reviews.submissionId);
+    const submissionIds = [...new Set(reviewsWithDetails?.map(r => r.submission_id) || [])];
+    const avgRatings: Record<string, number> = {};
 
-    // Create a map of submission ID to average rating
-    const avgRatingMap = new Map(
-      averageRatings.map(item => [
-        item.submissionId, 
-        Math.round((item.averageRating || 0) * 100) / 100
-      ])
-    );
+    for (const submissionId of submissionIds) {
+      const submissionReviews = reviewsWithDetails?.filter(r => r.submission_id === submissionId) || [];
+      if (submissionReviews.length > 0) {
+        const totalRating = submissionReviews.reduce((sum, r) => sum + r.rating, 0);
+        avgRatings[submissionId] = Math.round((totalRating / submissionReviews.length) * 100) / 100;
+      }
+    }
 
     // Enhance reviews with average ratings
-    const enhancedReviews = reviewsWithDetails.map(review => ({
-      ...review,
-      submissionAverageRating: avgRatingMap.get(review.submissionId) || 0
+    const enhancedReviews = (reviewsWithDetails || []).map(review => ({
+      id: review.id,
+      rating: review.rating,
+      comments: review.comments,
+      createdAt: review.created_at,
+      submissionId: review.submission_id,
+      title: review.submissions.title,
+      judgeId: review.judge_id,
+      judgeName: review.judges.name,
+      submissionAverageRating: avgRatings[review.submission_id] || 0
     }));
 
     return NextResponse.json(enhancedReviews);

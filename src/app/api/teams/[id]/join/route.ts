@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { teams, hackathonParticipants, teamMembers, hackathons } from '@/db/schema';
-import { eq, and, count } from 'drizzle-orm';
+import { supabase } from '@/lib/supabase';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const teamId = parseInt(params.id);
+    const teamId = params.id;
     
     // Validate team ID
-    if (!teamId || isNaN(teamId)) {
+    if (!teamId) {
       return NextResponse.json({ 
         error: "Valid team ID is required",
         code: "INVALID_TEAM_ID" 
       }, { status: 400 });
+    }
+
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json({
+        error: "Authentication required",
+        code: "UNAUTHENTICATED"
+      }, { status: 401 });
     }
 
     const requestBody = await request.json();
@@ -29,46 +37,37 @@ export async function POST(
       }, { status: 400 });
     }
 
-    if (isNaN(parseInt(participant_id))) {
-      return NextResponse.json({ 
-        error: "Valid participant ID is required",
-        code: "INVALID_PARTICIPANT_ID" 
-      }, { status: 400 });
-    }
-
-    const participantId = parseInt(participant_id);
-
     // 1. Validate team exists and get hackathon info
-    const teamResult = await db.select({
-      teamId: teams.id,
-      teamName: teams.name,
-      hackathonId: teams.hackathonId,
-      maxTeamSize: hackathons.maxTeamSize
-    })
-    .from(teams)
-    .innerJoin(hackathons, eq(teams.hackathonId, hackathons.id))
-    .where(eq(teams.id, teamId))
-    .limit(1);
+    const { data: teamWithHackathon, error: teamError } = await supabase
+      .from('teams')
+      .select(`
+        id,
+        name,
+        hackathon_id,
+        hackathons!inner(max_team_size)
+      `)
+      .eq('id', teamId)
+      .single();
 
-    if (teamResult.length === 0) {
+    if (teamError || !teamWithHackathon) {
       return NextResponse.json({ 
         error: "Team not found",
         code: "TEAM_NOT_FOUND" 
       }, { status: 404 });
     }
 
-    const team = teamResult[0];
+    const team = teamWithHackathon;
+    const maxTeamSize = team.hackathons.max_team_size;
 
     // 2. Check participant exists and is part of same hackathon
-    const participantResult = await db.select()
-      .from(hackathonParticipants)
-      .where(and(
-        eq(hackathonParticipants.id, participantId),
-        eq(hackathonParticipants.hackathonId, team.hackathonId)
-      ))
-      .limit(1);
+    const { data: participant, error: participantError } = await supabase
+      .from('hackathon_participants')
+      .select('*')
+      .eq('id', participant_id)
+      .eq('hackathon_id', team.hackathon_id)
+      .single();
 
-    if (participantResult.length === 0) {
+    if (participantError || !participant) {
       return NextResponse.json({ 
         error: "Participant not found or not registered for this hackathon",
         code: "PARTICIPANT_NOT_FOUND" 
@@ -76,19 +75,18 @@ export async function POST(
     }
 
     // 3. Check participant isn't already on another team in this hackathon
-    const existingTeamMember = await db.select({
-      teamMemberId: teamMembers.id,
-      teamId: teamMembers.teamId
-    })
-    .from(teamMembers)
-    .innerJoin(teams, eq(teamMembers.teamId, teams.id))
-    .where(and(
-      eq(teamMembers.participantId, participantId),
-      eq(teams.hackathonId, team.hackathonId)
-    ))
-    .limit(1);
+    const { data: existingTeamMember, error: existingError } = await supabase
+      .from('team_members')
+      .select(`
+        id,
+        team_id,
+        teams!inner(hackathon_id)
+      `)
+      .eq('user_id', participant.user_id)
+      .eq('teams.hackathon_id', team.hackathon_id)
+      .single();
 
-    if (existingTeamMember.length > 0) {
+    if (existingTeamMember && !existingError) {
       return NextResponse.json({ 
         error: "Participant is already on a team in this hackathon",
         code: "ALREADY_ON_TEAM" 
@@ -96,31 +94,43 @@ export async function POST(
     }
 
     // 4. Check team size doesn't exceed hackathon.maxTeamSize
-    const currentTeamSizeResult = await db.select({
-      count: count()
-    })
-    .from(teamMembers)
-    .where(eq(teamMembers.teamId, teamId));
+    const { count: currentTeamSize, error: countError } = await supabase
+      .from('team_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('team_id', teamId);
 
-    const currentTeamSize = currentTeamSizeResult[0]?.count || 0;
-
-    if (currentTeamSize >= team.maxTeamSize) {
+    if (countError) {
+      console.error('Count error:', countError);
       return NextResponse.json({ 
-        error: `Team is full. Maximum team size is ${team.maxTeamSize}`,
+        error: 'Failed to check team size' 
+      }, { status: 500 });
+    }
+
+    if ((currentTeamSize || 0) >= maxTeamSize) {
+      return NextResponse.json({ 
+        error: `Team is full. Maximum team size is ${maxTeamSize}`,
         code: "TEAM_FULL" 
       }, { status: 400 });
     }
 
     // 5. Add participant to team if all validations pass
-    const newTeamMember = await db.insert(teamMembers)
-      .values({
-        teamId: teamId,
-        participantId: participantId,
-        createdAt: Date.now()
+    const { data, error } = await supabase
+      .from('team_members')
+      .insert({
+        team_id: teamId,
+        user_id: participant.user_id
       })
-      .returning();
+      .select()
+      .single();
 
-    return NextResponse.json(newTeamMember[0], { status: 201 });
+    if (error) {
+      console.error('POST error:', error);
+      return NextResponse.json({ 
+        error: error.message 
+      }, { status: 500 });
+    }
+
+    return NextResponse.json(data, { status: 201 });
 
   } catch (error) {
     console.error('POST error:', error);

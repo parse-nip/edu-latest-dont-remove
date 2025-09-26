@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { hackathons } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { supabase } from '@/lib/supabase';
 
 export async function GET(
   request: NextRequest,
@@ -11,7 +9,7 @@ export async function GET(
     const { id } = params;
 
     // Validate ID parameter
-    if (!id || isNaN(parseInt(id))) {
+    if (!id) {
       return NextResponse.json({ 
         error: "Valid ID is required",
         code: "INVALID_ID" 
@@ -19,18 +17,25 @@ export async function GET(
     }
 
     // Get single hackathon by ID
-    const hackathon = await db.select()
-      .from(hackathons)
-      .where(eq(hackathons.id, parseInt(id)))
-      .limit(1);
+    const { data, error } = await supabase
+      .from('hackathons')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    if (hackathon.length === 0) {
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ 
+          error: 'Hackathon not found' 
+        }, { status: 404 });
+      }
+      console.error('GET error:', error);
       return NextResponse.json({ 
-        error: 'Hackathon not found' 
-      }, { status: 404 });
+        error: error.message 
+      }, { status: 500 });
     }
 
-    return NextResponse.json(hackathon[0]);
+    return NextResponse.json(data);
 
   } catch (error) {
     console.error('GET error:', error);

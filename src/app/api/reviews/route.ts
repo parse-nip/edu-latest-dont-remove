@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { reviews, submissions, judges } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { submission_id, judge_id, rating, comments } = body;
+
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json({
+        error: "Authentication required",
+        code: "UNAUTHENTICATED"
+      }, { status: 401 });
+    }
 
     // Validate required fields
     if (!submission_id) {
@@ -31,22 +39,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate field types and values
-    const submissionIdInt = parseInt(submission_id);
-    if (isNaN(submissionIdInt)) {
-      return NextResponse.json({ 
-        error: "Submission ID must be a valid integer",
-        code: "INVALID_SUBMISSION_ID" 
-      }, { status: 400 });
-    }
-
-    const judgeIdInt = parseInt(judge_id);
-    if (isNaN(judgeIdInt)) {
-      return NextResponse.json({ 
-        error: "Judge ID must be a valid integer",
-        code: "INVALID_JUDGE_ID" 
-      }, { status: 400 });
-    }
-
     const ratingInt = parseInt(rating);
     if (isNaN(ratingInt) || ratingInt < 1 || ratingInt > 10) {
       return NextResponse.json({ 
@@ -56,78 +48,64 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if submission exists
-    const submission = await db.select()
-      .from(submissions)
-      .where(eq(submissions.id, submissionIdInt))
-      .limit(1);
+    const { data: submission, error: submissionError } = await supabase
+      .from('submissions')
+      .select('*')
+      .eq('id', submission_id)
+      .single();
 
-    if (submission.length === 0) {
+    if (submissionError || !submission) {
       return NextResponse.json({ 
         error: "Submission not found",
         code: "SUBMISSION_NOT_FOUND" 
       }, { status: 404 });
     }
 
-    // Check if judge exists
-    const judge = await db.select()
-      .from(judges)
-      .where(eq(judges.id, judgeIdInt))
-      .limit(1);
+    // Check if judge exists and belongs to current user
+    const { data: judge, error: judgeError } = await supabase
+      .from('judges')
+      .select('*')
+      .eq('id', judge_id)
+      .eq('user_id', user.id)
+      .single();
 
-    if (judge.length === 0) {
+    if (judgeError || !judge) {
       return NextResponse.json({ 
-        error: "Judge not found",
+        error: "Judge not found or not authorized",
         code: "JUDGE_NOT_FOUND" 
       }, { status: 404 });
     }
 
     // Validate that judge belongs to same hackathon as submission
-    if (judge[0].hackathonId !== submission[0].hackathonId) {
+    if (judge.hackathon_id !== submission.hackathon_id) {
       return NextResponse.json({ 
         error: "Judge does not belong to the same hackathon as the submission",
         code: "HACKATHON_MISMATCH" 
       }, { status: 400 });
     }
 
-    // Check if review already exists (for upsert behavior)
-    const existingReview = await db.select()
-      .from(reviews)
-      .where(and(
-        eq(reviews.submissionId, submissionIdInt),
-        eq(reviews.judgeId, judgeIdInt)
-      ))
-      .limit(1);
+    // Use upsert to handle both insert and update
+    const { data, error } = await supabase
+      .from('reviews')
+      .upsert({
+        submission_id: submission_id,
+        judge_id: judge_id,
+        rating: ratingInt,
+        comments: comments || null
+      }, {
+        onConflict: 'submission_id,judge_id'
+      })
+      .select()
+      .single();
 
-    const currentTimestamp = Math.floor(Date.now() / 1000);
-
-    if (existingReview.length > 0) {
-      // Update existing review
-      const updatedReview = await db.update(reviews)
-        .set({
-          rating: ratingInt,
-          comments: comments || null
-        })
-        .where(and(
-          eq(reviews.submissionId, submissionIdInt),
-          eq(reviews.judgeId, judgeIdInt)
-        ))
-        .returning();
-
-      return NextResponse.json(updatedReview[0], { status: 200 });
-    } else {
-      // Create new review
-      const newReview = await db.insert(reviews)
-        .values({
-          submissionId: submissionIdInt,
-          judgeId: judgeIdInt,
-          rating: ratingInt,
-          comments: comments || null,
-          createdAt: currentTimestamp
-        })
-        .returning();
-
-      return NextResponse.json(newReview[0], { status: 201 });
+    if (error) {
+      console.error('POST /api/reviews error:', error);
+      return NextResponse.json({ 
+        error: error.message 
+      }, { status: 500 });
     }
+
+    return NextResponse.json(data, { status: 201 });
 
   } catch (error) {
     console.error('POST /api/reviews error:', error);

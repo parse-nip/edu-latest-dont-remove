@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { hackathons, submissions, teams, scores } from '@/db/schema';
-import { eq, sum, sql } from 'drizzle-orm';
+import { supabase } from '@/lib/supabase';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const hackathonId = parseInt(params.id);
+    const hackathonId = params.id;
     
-    if (!hackathonId || isNaN(hackathonId)) {
+    if (!hackathonId) {
       return NextResponse.json({
         error: "Valid hackathon ID is required",
         code: "INVALID_HACKATHON_ID"
@@ -18,12 +16,13 @@ export async function GET(
     }
 
     // Check if hackathon exists
-    const hackathon = await db.select()
-      .from(hackathons)
-      .where(eq(hackathons.id, hackathonId))
-      .limit(1);
+    const { data: hackathon, error: hackathonError } = await supabase
+      .from('hackathons')
+      .select('*')
+      .eq('id', hackathonId)
+      .single();
 
-    if (hackathon.length === 0) {
+    if (hackathonError || !hackathon) {
       return NextResponse.json({
         error: "Hackathon not found",
         code: "HACKATHON_NOT_FOUND"
@@ -31,31 +30,62 @@ export async function GET(
     }
 
     // Get leaderboard data with total scores
-    const leaderboardData = await db
-      .select({
-        submissionId: submissions.id,
-        title: submissions.title,
-        teamName: teams.name,
-        repoUrl: submissions.repoUrl,
-        demoUrl: submissions.demoUrl,
-        totalScore: sql<number>`COALESCE(SUM(${scores.score}), 0)`.as('totalScore')
-      })
-      .from(submissions)
-      .innerJoin(teams, eq(submissions.teamId, teams.id))
-      .leftJoin(scores, eq(submissions.id, scores.submissionId))
-      .where(eq(submissions.hackathonId, hackathonId))
-      .groupBy(submissions.id, submissions.title, teams.name, submissions.repoUrl, submissions.demoUrl)
-      .orderBy(sql`totalScore DESC`);
+    // First get all submissions for this hackathon with their teams
+    const { data: submissions, error: submissionsError } = await supabase
+      .from('submissions')
+      .select(`
+        id,
+        title,
+        repo_url,
+        demo_url,
+        teams!inner(name)
+      `)
+      .eq('hackathon_id', hackathonId);
 
-    // Convert totalScore to number for each record
-    const formattedLeaderboard = leaderboardData.map(item => ({
-      submissionId: item.submissionId,
-      title: item.title,
-      teamName: item.teamName,
-      repoUrl: item.repoUrl,
-      demoUrl: item.demoUrl,
-      totalScore: Number(item.totalScore)
-    }));
+    if (submissionsError) {
+      console.error('GET submissions error:', submissionsError);
+      return NextResponse.json({
+        error: submissionsError.message
+      }, { status: 500 });
+    }
+
+    // Get scores for all submissions
+    const submissionIds = submissions?.map(s => s.id) || [];
+    
+    let scoresData = [];
+    if (submissionIds.length > 0) {
+      const { data: scores, error: scoresError } = await supabase
+        .from('scores')
+        .select('submission_id, score')
+        .in('submission_id', submissionIds);
+
+      if (scoresError) {
+        console.error('GET scores error:', scoresError);
+        return NextResponse.json({
+          error: scoresError.message
+        }, { status: 500 });
+      }
+      scoresData = scores || [];
+    }
+
+    // Calculate total scores per submission
+    const scoresBySubmission = scoresData.reduce((acc, score) => {
+      if (!acc[score.submission_id]) {
+        acc[score.submission_id] = 0;
+      }
+      acc[score.submission_id] += score.score;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Format leaderboard data
+    const formattedLeaderboard = (submissions || []).map(submission => ({
+      submissionId: submission.id,
+      title: submission.title,
+      teamName: submission.teams.name,
+      repoUrl: submission.repo_url,
+      demoUrl: submission.demo_url,
+      totalScore: scoresBySubmission[submission.id] || 0
+    })).sort((a, b) => b.totalScore - a.totalScore);
 
     return NextResponse.json(formattedLeaderboard);
 

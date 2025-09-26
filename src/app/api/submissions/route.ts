@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { submissions, hackathons, teams } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { hackathon_id, team_id, title, repo_url, demo_url, description } = body;
+
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json({
+        error: "Authentication required",
+        code: "UNAUTHENTICATED"
+      }, { status: 401 });
+    }
 
     // Validate required fields
     if (!hackathon_id) {
@@ -30,31 +38,14 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Validate hackathon_id and team_id are valid integers
-    const hackathonId = parseInt(hackathon_id);
-    const teamId = parseInt(team_id);
-
-    if (isNaN(hackathonId)) {
-      return NextResponse.json({ 
-        error: "hackathon_id must be a valid integer",
-        code: "INVALID_HACKATHON_ID" 
-      }, { status: 400 });
-    }
-
-    if (isNaN(teamId)) {
-      return NextResponse.json({ 
-        error: "team_id must be a valid integer",
-        code: "INVALID_TEAM_ID" 
-      }, { status: 400 });
-    }
-
     // Validate hackathon exists
-    const hackathon = await db.select()
-      .from(hackathons)
-      .where(eq(hackathons.id, hackathonId))
-      .limit(1);
+    const { data: hackathon, error: hackathonError } = await supabase
+      .from('hackathons')
+      .select('*')
+      .eq('id', hackathon_id)
+      .single();
 
-    if (hackathon.length === 0) {
+    if (hackathonError || !hackathon) {
       return NextResponse.json({ 
         error: "Hackathon not found",
         code: "HACKATHON_NOT_FOUND" 
@@ -62,12 +53,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate team exists
-    const team = await db.select()
-      .from(teams)
-      .where(eq(teams.id, teamId))
-      .limit(1);
+    const { data: team, error: teamError } = await supabase
+      .from('teams')
+      .select('*')
+      .eq('id', team_id)
+      .single();
 
-    if (team.length === 0) {
+    if (teamError || !team) {
       return NextResponse.json({ 
         error: "Team not found",
         code: "TEAM_NOT_FOUND" 
@@ -75,30 +67,36 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate team belongs to the hackathon
-    if (team[0].hackathonId !== hackathonId) {
+    if (team.hackathon_id !== hackathon_id) {
       return NextResponse.json({ 
         error: "Team does not belong to the specified hackathon",
         code: "TEAM_HACKATHON_MISMATCH" 
       }, { status: 400 });
     }
 
-    // Prepare submission data
-    const submissionData = {
-      hackathonId: hackathonId,
-      teamId: teamId,
-      title: title.trim(),
-      repoUrl: repo_url ? repo_url.trim() : null,
-      demoUrl: demo_url ? demo_url.trim() : null,
-      description: description ? description.trim() : null,
-      submittedAt: Date.now()
-    };
-
     // Create submission
-    const newSubmission = await db.insert(submissions)
-      .values(submissionData)
-      .returning();
+    const { data, error } = await supabase
+      .from('submissions')
+      .insert({
+        hackathon_id: hackathon_id,
+        team_id: team_id,
+        title: title.trim(),
+        repo_url: repo_url ? repo_url.trim() : null,
+        demo_url: demo_url ? demo_url.trim() : null,
+        description: description ? description.trim() : null,
+        submitted_by: user.id
+      })
+      .select()
+      .single();
 
-    return NextResponse.json(newSubmission[0], { status: 201 });
+    if (error) {
+      console.error('POST error:', error);
+      return NextResponse.json({ 
+        error: error.message 
+      }, { status: 500 });
+    }
+
+    return NextResponse.json(data, { status: 201 });
 
   } catch (error) {
     console.error('POST error:', error);

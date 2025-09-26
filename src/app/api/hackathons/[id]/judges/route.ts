@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { hackathons, judges } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { supabase } from '@/lib/supabase';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const hackathonId = parseInt(params.id);
+    const hackathonId = params.id;
     
-    if (!hackathonId || isNaN(hackathonId)) {
+    if (!hackathonId) {
       return NextResponse.json({ 
         error: "Valid hackathon ID is required",
         code: "INVALID_HACKATHON_ID" 
@@ -18,21 +16,30 @@ export async function GET(
     }
 
     // Validate hackathon exists
-    const hackathon = await db.select()
-      .from(hackathons)
-      .where(eq(hackathons.id, hackathonId))
-      .limit(1);
+    const { data: hackathon, error: hackathonError } = await supabase
+      .from('hackathons')
+      .select('*')
+      .eq('id', hackathonId)
+      .single();
 
-    if (hackathon.length === 0) {
+    if (hackathonError || !hackathon) {
       return NextResponse.json({ 
         error: 'Hackathon not found' 
       }, { status: 404 });
     }
 
     // Get all judges for the hackathon
-    const judgesList = await db.select()
-      .from(judges)
-      .where(eq(judges.hackathonId, hackathonId));
+    const { data: judgesList, error } = await supabase
+      .from('judges')
+      .select('*')
+      .eq('hackathon_id', hackathonId);
+
+    if (error) {
+      console.error('GET error:', error);
+      return NextResponse.json({ 
+        error: error.message 
+      }, { status: 500 });
+    }
 
     return NextResponse.json(judgesList);
 
@@ -49,22 +56,33 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const hackathonId = parseInt(params.id);
+    const hackathonId = params.id;
     
-    if (!hackathonId || isNaN(hackathonId)) {
+    if (!hackathonId) {
       return NextResponse.json({ 
         error: "Valid hackathon ID is required",
         code: "INVALID_HACKATHON_ID" 
       }, { status: 400 });
     }
 
-    // Validate hackathon exists
-    const hackathon = await db.select()
-      .from(hackathons)
-      .where(eq(hackathons.id, hackathonId))
-      .limit(1);
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json({
+        error: "Authentication required",
+        code: "UNAUTHENTICATED"
+      }, { status: 401 });
+    }
 
-    if (hackathon.length === 0) {
+    // Validate hackathon exists
+    const { data: hackathon, error: hackathonError } = await supabase
+      .from('hackathons')
+      .select('*')
+      .eq('id', hackathonId)
+      .single();
+
+    if (hackathonError || !hackathon) {
       return NextResponse.json({ 
         error: 'Hackathon not found' 
       }, { status: 404 });
@@ -88,15 +106,24 @@ export async function POST(
     }
 
     // Create new judge
-    const newJudge = await db.insert(judges)
-      .values({
-        hackathonId,
-        name: name.trim(),
-        createdAt: Date.now()
+    const { data, error } = await supabase
+      .from('judges')
+      .insert({
+        hackathon_id: hackathonId,
+        user_id: user.id,
+        name: name.trim()
       })
-      .returning();
+      .select()
+      .single();
 
-    return NextResponse.json(newJudge[0], { status: 201 });
+    if (error) {
+      console.error('POST error:', error);
+      return NextResponse.json({ 
+        error: error.message 
+      }, { status: 500 });
+    }
+
+    return NextResponse.json(data, { status: 201 });
 
   } catch (error) {
     console.error('POST error:', error);
