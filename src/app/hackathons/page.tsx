@@ -31,26 +31,42 @@ export default function HackathonsPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    console.log('[HACKATHONS PAGE] useEffect triggered', { 
+      loading, 
+      user: user ? { id: user.id, email: user.email, role: user.role } : null 
+    })
+    
     if (!loading && user) {
+      console.log('[HACKATHONS PAGE] User authenticated, fetching hackathons...')
       fetchHackathons()
     } else if (!loading && !user) {
+      console.log('[HACKATHONS PAGE] No user, setting loading to false')
       setIsLoading(false)
+    } else {
+      console.log('[HACKATHONS PAGE] Still loading auth or no conditions met')
     }
   }, [user, loading])
 
   const fetchHackathons = async () => {
+    console.log('[HACKATHONS PAGE] fetchHackathons called')
     try {
+      console.log('[HACKATHONS PAGE] Starting supabase query...')
       const { data, error } = await supabase
         .from('hackathons')
         .select('*')
         .order('created_at', { ascending: false })
 
+      console.log('[HACKATHONS PAGE] Supabase response:', { data, error })
+      
       if (error) throw error
+      
+      console.log('[HACKATHONS PAGE] Setting hackathons data:', data)
       setHackathons(data || [])
     } catch (err) {
-      console.error('Error fetching hackathons:', err)
+      console.error('[HACKATHONS PAGE] Error fetching hackathons:', err)
       setError('Failed to load hackathons')
     } finally {
+      console.log('[HACKATHONS PAGE] Setting isLoading to false')
       setIsLoading(false)
     }
   }

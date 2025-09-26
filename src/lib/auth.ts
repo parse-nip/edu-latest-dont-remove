@@ -52,16 +52,22 @@ export const signOut = async () => {
 
 export const getCurrentUser = async (): Promise<AuthUser | null> => {
   try {
+    console.log('[AUTH] getCurrentUser called')
     const { data: { user } } = await supabase.auth.getUser()
+    
+    console.log('[AUTH] Raw user from supabase:', user)
     
     if (!user) return null
     
-    return {
+    const authUser = {
       id: user.id,
       email: user.email!,
       displayName: user.user_metadata?.display_name || user.email!,
       role: user.user_metadata?.role || 'participant'
     }
+    
+    console.log('[AUTH] Returning authUser:', authUser)
+    return authUser
   } catch (error) {
     console.error('Error getting current user:', error)
     return null

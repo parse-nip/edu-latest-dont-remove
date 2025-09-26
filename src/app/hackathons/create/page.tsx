@@ -74,16 +74,22 @@ export default function CreateHackathonPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('[CREATE HACKATHON] Form submitted', formData)
     setIsSubmitting(true)
     setError(null)
 
     try {
+      console.log('[CREATE HACKATHON] Getting session...')
       // Get auth token from Supabase client
       const { data: { session } } = await supabase.auth.getSession();
+      console.log('[CREATE HACKATHON] Session:', session ? 'present' : 'null')
+      
       if (!session?.access_token) {
+        console.log('[CREATE HACKATHON] No access token found')
         throw new Error('No authentication token found');
       }
 
+      console.log('[CREATE HACKATHON] Making API request...')
       const response = await fetch('/api/hackathons', {
         method: 'POST',
         headers: {
@@ -100,14 +106,19 @@ export default function CreateHackathonPage() {
         }),
       })
 
+      console.log('[CREATE HACKATHON] Response status:', response.status)
+      
       if (!response.ok) {
         const errorData = await response.json()
+        console.log('[CREATE HACKATHON] Error response:', errorData)
         throw new Error(errorData.error || 'Failed to create hackathon')
       }
 
       const newHackathon = await response.json()
+      console.log('[CREATE HACKATHON] Success, new hackathon:', newHackathon)
       router.push(`/hackathons/${newHackathon.id}`)
     } catch (err) {
+      console.error('[CREATE HACKATHON] Error:', err)
       setError(err instanceof Error ? err.message : 'Failed to create hackathon')
     } finally {
       setIsSubmitting(false)

@@ -39,9 +39,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[API] POST /api/hackathons called')
     // Get user from session
     const authHeader = request.headers.get('authorization');
+    console.log('[API] Auth header present:', !!authHeader)
+    
     if (!authHeader?.startsWith('Bearer ')) {
+      console.log('[API] No valid auth header')
       return NextResponse.json({ 
         error: "Authentication required",
         code: "UNAUTHENTICATED" 
@@ -49,9 +53,14 @@ export async function POST(request: NextRequest) {
     }
 
     const token = authHeader.substring(7);
+    console.log('[API] Extracted token length:', token.length)
+    
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
+    console.log('[API] getUser result:', { user: user ? 'present' : 'null', authError })
+    
     if (authError || !user) {
+      console.log('[API] Auth failed:', authError)
       return NextResponse.json({ 
         error: "Authentication required",
         code: "UNAUTHENTICATED" 
@@ -59,6 +68,7 @@ export async function POST(request: NextRequest) {
     }
 
     const requestBody = await request.json();
+    console.log('[API] Request body:', requestBody)
     const { name, description, start_at, end_at, status, max_team_size } = requestBody;
 
     // Validate required fields

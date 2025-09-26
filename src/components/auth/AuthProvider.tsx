@@ -17,17 +17,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    console.log('[AUTH PROVIDER] Initial useEffect running')
     // Get initial session
-    getCurrentUser().then(setUser).finally(() => setLoading(false))
+    getCurrentUser()
+      .then(user => {
+        console.log('[AUTH PROVIDER] Initial getCurrentUser result:', user)
+        setUser(user)
+      })
+      .finally(() => {
+        console.log('[AUTH PROVIDER] Initial loading complete')
+        setLoading(false)
+      })
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AUTH PROVIDER] Auth state change:', { event, session: session ? 'present' : 'null' })
       if (session?.user) {
         const authUser = await getCurrentUser()
+        console.log('[AUTH PROVIDER] Session user found, authUser:', authUser)
         setUser(authUser)
       } else {
+        console.log('[AUTH PROVIDER] No session, setting user to null')
         setUser(null)
       }
       setLoading(false)
