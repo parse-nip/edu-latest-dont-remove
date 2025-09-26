@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createServerClient, getAuthenticatedUser } from '@/lib/supabase-server';
 
 export async function GET(
   request: NextRequest,
@@ -16,6 +16,7 @@ export async function GET(
     }
 
     // Validate hackathon exists
+    const supabase = createServerClient();
     const { data: hackathon, error: hackathonError } = await supabase
       .from('hackathons')
       .select('*')
