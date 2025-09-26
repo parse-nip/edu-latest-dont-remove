@@ -44,10 +44,9 @@ export async function POST(request: NextRequest) {
     console.log('[API] POST /api/hackathons called')
     
     const cookieStore = cookies();
-    const supabase = createSupabaseServerClient(cookieStore);
 
     // Get user from session
-    const { user, error: authError } = await getAuthenticatedUser(request);
+    const { user, error: authError } = await getAuthenticatedUser(cookieStore, request);
     console.log('[API] getUser result:', { user: user ? 'present' : 'null', authError })
 
     if (authError || !user) {
@@ -57,6 +56,7 @@ export async function POST(request: NextRequest) {
       }, { status: 401 });
     }
 
+    const supabase = createSupabaseServerClient(cookieStore);
     const requestBody = await request.json();
     console.log('[API] Request body:', requestBody)
     const { name, description, start_at, end_at, status, max_team_size } = requestBody;

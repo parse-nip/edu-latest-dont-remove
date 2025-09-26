@@ -34,28 +34,33 @@ export function createSupabaseServerClient(cookieStore: ReadonlyRequestCookies) 
   )
 }
 
-export async function getAuthenticatedUser(request?: NextRequest) {
+export async function getAuthenticatedUser(cookieStore: ReadonlyRequestCookies, request?: NextRequest) {
+  // Always create the supabase client using the cookieStore
+  const supabase = createSupabaseServerClient(cookieStore)
+  
   // If request is provided, try to get token from Authorization header
   if (request) {
     const authHeader = request.headers.get('Authorization')
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7)
-      // Create a minimal Supabase client for token validation
-      const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          cookies: {
-            get() { return undefined },
-            set() {},
-            remove() {},
-          },
-        }
-      )
-      const { data: { user }, error } = await supabase.auth.getUser(token)
+      
+      // Set the session using the token
+      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+        access_token: token,
+        refresh_token: ''
+      })
+      
+      if (sessionError) {
+        return { user: null, error: sessionError }
+      }
+      
+      // Get the user from the session
+      const { data: { user }, error } = await supabase.auth.getUser()
       return { user, error }
     }
   }
 
-  return { user: null, error: new Error('No authentication token provided') }
+  // Fallback to getting user from existing session
+  const { data: { user }, error } = await supabase.auth.getUser()
+  return { user, error: error || (user ? null : new Error('No authentication token provided')) }
 }
