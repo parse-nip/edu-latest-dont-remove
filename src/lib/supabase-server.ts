@@ -1,33 +1,53 @@
+import { cookies as nextCookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import type { ReadonlyRequestCookies } from 'next/dist/server/web/spec-extension/adapters/request-cookies'
 
-export function createSupabaseServerClient(cookieStore: ReadonlyRequestCookies) {
+/**
+ * Create a Supabase server client that reads/writes to Next's cookie store.
+ *
+ * Accepts either:
+ *  - an already-awaited RequestCookies object (the usual case: `const cs = await cookies()`),
+ *  - OR nothing — it will `await cookies()` internally.
+ *
+ * This avoids the "cookies() should be awaited" error.
+ */
+export async function createSupabaseServerClient(
+  cookieStore?: ReadonlyRequestCookies | Promise<ReadonlyRequestCookies> | null
+) {
+  // Accept a promise or value and normalize it. If nothing provided, await next/headers
+  let store: ReadonlyRequestCookies
+  if (cookieStore) {
+    // if caller passed cookies() without awaiting (a Promise-like), await it
+    // detect promise by checking for `.then`
+    const maybePromise = cookieStore as any
+    store = typeof maybePromise.then === 'function' ? await maybePromise : (cookieStore as ReadonlyRequestCookies)
+  } else {
+    store = await nextCookies()
+  }
+
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         get(name: string) {
-          return cookieStore.get(name)?.value
+          return store.get(name)?.value
         },
         set(name: string, value: string, options) {
           try {
-            cookieStore.set({ name, value, ...options })
-          } catch (error) {
-            // The `set` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
+            // Note: this will throw if called from a Server Component; we keep the try/catch as in your original.
+            store.set({ name, value, ...options })
+          } catch (err) {
+            // ignore writes from Server Components (use middleware if you need to refresh sessions)
           }
         },
         remove(name: string, options) {
           try {
-            cookieStore.set({ name, value: '', ...options })
-          } catch (error) {
-            // The `delete` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
+            store.set({ name, value: '', ...options })
+          } catch (err) {
+            // ignore writes from Server Components
           }
         },
       },
@@ -35,37 +55,57 @@ export function createSupabaseServerClient(cookieStore: ReadonlyRequestCookies) 
   )
 }
 
-export async function getAuthenticatedUser(cookieStore: ReadonlyRequestCookies, request?: NextRequest) {
-  // First, try bearer token authentication if present
+/**
+ * Get the authenticated user, supporting:
+ *  - bearer token in the Authorization header (server-to-server / API-to-API)
+ *  - cookie-based session (typical browser session)
+ *
+ * Returns { user, error } where user is null if not found.
+ */
+export async function getAuthenticatedUser(
+  cookieStore?: ReadonlyRequestCookies | Promise<ReadonlyRequestCookies> | null,
+  request?: NextRequest
+) {
+  // 1) If request includes Authorization: Bearer <token>, try that first.
   if (request) {
-    const authHeader = request.headers.get('Authorization')
+    const authHeader = request.headers.get('authorization') ?? request.headers.get('Authorization')
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7)
-      
-      try {
-        // Create a temporary client that doesn't interfere with cookies
-        const tempSupabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
-        
-        // Set the session with the bearer token
-        const { data: sessionData, error: sessionError } = await tempSupabase.auth.setSession({
-          access_token: token,
-          refresh_token: ''
-        })
-        
-        if (!sessionError && sessionData.user) {
-          return { user: sessionData.user, error: null }
+      const token = authHeader.slice(7)
+
+      // Create a temporary supabase client that uses the Authorization header
+      // and does not try to persist session into cookies.
+      const tempSupabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          auth: {
+            persistSession: false, // important: don't attempt to save cookies
+            autoRefreshToken: false,
+          },
+          global: {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
         }
-      } catch (error) {
-        // Bearer token authentication failed, fall back to cookie-based auth
+      )
+
+      try {
+        // This call uses the Authorization header to fetch the user
+        const { data, error } = await tempSupabase.auth.getUser()
+        if (!error && data?.user) {
+          return { user: data.user, error: null }
+        }
+        // if error, fall back to cookie-based flow
+      } catch (err) {
+        // swallow and fallback to cookie-based
       }
     }
   }
 
-  // Fall back to cookie-based session authentication
-  const supabase = createSupabaseServerClient(cookieStore)
-  const { data: { user }, error } = await supabase.auth.getUser()
-  return { user, error: error || (user ? null : new Error('No authentication found')) }
+  // 2) Fallback: cookie-based session (typical)
+  const supabase = await createSupabaseServerClient(cookieStore)
+  const { data, error } = await supabase.auth.getUser()
+  // data.user may be null if no session
+  return { user: data?.user ?? null, error: error || (data?.user ? null : new Error('No authentication found')) }
 }
