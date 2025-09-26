@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -61,6 +61,7 @@ interface Participant {
 }
 
 export default function HackathonDetail({ params }: { params: { id: string } }) {
+  const unwrappedParams = React.use(params)
   const router = useRouter()
   const { user, loading } = useAuth()
   const [hackathon, setHackathon] = useState<Hackathon | null>(null)
@@ -84,7 +85,7 @@ export default function HackathonDetail({ params }: { params: { id: string } }) 
     } else if (!loading && !user) {
       router.push('/auth')
     }
-  }, [user, loading, params.id])
+  }, [user, loading, unwrappedParams.id])
 
   const fetchHackathonData = async () => {
     try {
@@ -92,7 +93,7 @@ export default function HackathonDetail({ params }: { params: { id: string } }) 
       const { data: hackathonData, error: hackathonError } = await supabase
         .from('hackathons')
         .select('*')
-        .eq('id', params.id)
+        .eq('id', unwrappedParams.id)
         .single()
 
       if (hackathonError) throw hackathonError
@@ -117,7 +118,7 @@ export default function HackathonDetail({ params }: { params: { id: string } }) 
     const { data, error } = await supabase
       .from('teams')
       .select('*')
-      .eq('hackathon_id', params.id)
+      .eq('hackathon_id', unwrappedParams.id)
       .order('created_at', { ascending: false })
 
     if (!error) setTeams(data || [])
@@ -127,7 +128,7 @@ export default function HackathonDetail({ params }: { params: { id: string } }) 
     const { data, error } = await supabase
       .from('submissions')
       .select('*')
-      .eq('hackathon_id', params.id)
+      .eq('hackathon_id', unwrappedParams.id)
       .order('submitted_at', { ascending: false })
 
     if (!error) setSubmissions(data || [])
@@ -137,7 +138,7 @@ export default function HackathonDetail({ params }: { params: { id: string } }) 
     const { data, error } = await supabase
       .from('judges')
       .select('*')
-      .eq('hackathon_id', params.id)
+      .eq('hackathon_id', unwrappedParams.id)
       .order('created_at', { ascending: false })
 
     if (!error) setJudges(data || [])
@@ -147,7 +148,7 @@ export default function HackathonDetail({ params }: { params: { id: string } }) 
     const { data, error } = await supabase
       .from('hackathon_participants')
       .select('*')
-      .eq('hackathon_id', params.id)
+      .eq('hackathon_id', unwrappedParams.id)
       .order('created_at', { ascending: false })
 
     if (!error) setParticipants(data || [])
@@ -165,7 +166,7 @@ export default function HackathonDetail({ params }: { params: { id: string } }) 
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch(`/api/hackathons/${params.id}/teams`, {
+      const response = await fetch(`/api/hackathons/${unwrappedParams.id}/teams`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -200,7 +201,7 @@ export default function HackathonDetail({ params }: { params: { id: string } }) 
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch(`/api/hackathons/${params.id}/judges`, {
+      const response = await fetch(`/api/hackathons/${unwrappedParams.id}/judges`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
