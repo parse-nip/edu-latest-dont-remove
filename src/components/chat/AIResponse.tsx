@@ -29,6 +29,7 @@ export function AIResponse({ files, explanation, education }: AIResponseProps) {
       {/* Sequential file changes under the explanation - inline, no outer card */}
       {files.length > 0 && (
         <FileChangeChecklist 
+          key={files.join('-')}
           files={fileChangeItems}
           autoPlay={true}
           interval={800}
