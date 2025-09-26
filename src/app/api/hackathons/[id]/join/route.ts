@@ -3,10 +3,10 @@ import { supabase } from '@/lib/supabase';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
-    const hackathonId = params.id;
+    const hackathonId = context.params.id;
     
     if (!hackathonId) {
       return NextResponse.json({
