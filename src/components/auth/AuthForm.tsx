@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { signUp, signIn, type UserRole } from "@/lib/auth"
-import { AlertCircle, User, UserCheck, Crown } from "lucide-react"
+import { CircleAlert as AlertCircle, User, UserCheck, Crown } from "lucide-react"
 
 export function AuthForm() {
   const router = useRouter()

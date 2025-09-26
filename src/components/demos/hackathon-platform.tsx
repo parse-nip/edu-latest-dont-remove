@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Users, FileText, Bell, Clock, Trophy, Star, CheckCircle, UserPlus, Settings, BarChart3, MessageSquare, HelpCircle, ChevronUp, ChevronDown, Search, Filter, UserPlus as UserPlusIcon, CheckCircle as CheckIcon, Link, X, Calendar, Target, Code, Presentation } from "lucide-react";
+import { Users, FileText, Bell, Clock, Trophy, Star, CircleCheck as CheckCircle, UserPlus, Settings, ChartBar as BarChart3, MessageSquare, Circle as HelpCircle, ChevronUp, ChevronDown, Search, ListFilter as Filter, UserPlus as UserPlusIcon, CircleCheck as CheckIcon, Link, X, Calendar, Target, Code, Presentation } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
