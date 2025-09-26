@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { GraduationCap, Trophy, Home } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/components/auth/AuthProvider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,31 +20,15 @@ import { useEffect, useState } from "react";
 export const Navbar = () => {
   const pathname = usePathname();
   const router = useRouter();
-  const [authState, setAuthState] = useState<"logged_in" | "logged_out">("logged_in");
-
-  useEffect(() => {
-    const stored = (typeof window !== "undefined" && localStorage.getItem("demoAuth")) as
-      | "logged_in"
-      | "logged_out"
-      | null;
-    setAuthState(stored ?? "logged_in");
-
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === "demoAuth") {
-        setAuthState((e.newValue as any) ?? "logged_in");
-      }
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  const { user, signOut } = useAuth();
 
   const dynamicLinks = (() => {
     const base: { href: string; label: string; icon: any }[] = [{ href: "/", label: "Home", icon: Home }];
-    if (authState === "logged_in") {
+    if (user) {
       base.push({ href: "/hackathons", label: "Hackathons", icon: Trophy });
       return base;
     }
-    // logged_out
+    // Not logged in
     base.push({ href: "/pricing", label: "Pricing", icon: GraduationCap });
     return base;
   })();
@@ -77,42 +62,40 @@ export const Navbar = () => {
           })}
         </nav>
 
-        {/* Demo User Account Widget */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src="/avatar.jpg" alt="Demo User" />
-                <AvatarFallback>DU</AvatarFallback>
-              </Avatar>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56" align="end" forceMount>
-            <DropdownMenuLabel className="flex flex-col space-y-1">
-              <p className="text-sm font-medium leading-none">Demo User</p>
-              <p className="text-xs leading-none text-muted-foreground">
-                100 credits remaining
-              </p>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/profile">Profile</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/settings">Settings</Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => {
-                localStorage.setItem("demoAuth", "logged_out");
-                setAuthState("logged_out");
-                router.push("/");
-              }}
-            >
-              Logout
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {user ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback>{user.displayName.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+              <DropdownMenuLabel className="flex flex-col space-y-1">
+                <p className="text-sm font-medium leading-none">{user.displayName}</p>
+                <p className="text-xs leading-none text-muted-foreground">
+                  {user.email}
+                </p>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/profile">Profile</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/settings">Settings</Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => signOut()}>
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Button asChild>
+            <Link href="/auth">Sign In</Link>
+          </Button>
+        )}
       </div>
     </header>
   );
