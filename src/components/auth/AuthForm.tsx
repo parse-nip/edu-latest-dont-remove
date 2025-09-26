@@ -10,17 +10,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { signUp, signIn, type UserRole } from "@/lib/auth"
 import { supabase } from "@/lib/auth"
-  try {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          display_name: displayName,
-          role,
-          join_code: joinCode,
-        }
+
+export default function AuthPage() {
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Sign up form state
+  const [signUpForm, setSignUpForm] = useState({
+    displayName: "",
+    email: "",
+    password: "",
     role: "participant" as UserRole,
+    joinCode: ""
+  })
+
   // Sign in form state
   const [signInForm, setSignInForm] = useState({
     email: "",
@@ -193,33 +197,29 @@ import { supabase } from "@/lib/auth"
                     id="join-code"
                     placeholder="Enter code from your organizer"
                     value={signUpForm.joinCode}
-  try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
-    
-    return { data, error }
-  } catch (err: any) {
-    return { data: null, error: { message: err.message || 'Authentication service unavailable' } }
-  }
+                    onChange={(e) => setSignUpForm(prev => ({ ...prev, joinCode: e.target.value }))}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Creating account..." : "Sign Up"}
+                </Button>
+              </form>
             </TabsContent>
           </Tabs>
 
-  try {
-    const { error } = await supabase.auth.signOut()
-    return { error }
-  } catch (err: any) {
-    return { error: { message: err.message || 'Sign out failed' } }
-  }
-      id: user.id,
-      email: user.email!,
-      role: user.user_metadata.role || 'participant',
-      displayName: user.user_metadata.display_name || user.email!,
-      joinCode: user.user_metadata.join_code
-    }
-  } catch (err) {
-    console.error('Error getting current user:', err)
-    return null
-  }
+          {error && (
+            <div className="p-4 mt-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+              {error}
+            </div>
+          )}
+          
+          {!supabase && (
+            <div className="p-4 mt-4 text-sm bg-yellow-50 border border-yellow-200 rounded-md">
+              Authentication service is not available. Please check your configuration.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
 }
