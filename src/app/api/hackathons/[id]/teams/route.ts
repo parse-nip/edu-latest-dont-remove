@@ -3,10 +3,10 @@ import { supabase } from '@/lib/supabase';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const hackathonId = params.id;
+    const { id: hackathonId } = await context.params;
 
     // Validate hackathon ID
     if (!hackathonId) {
@@ -17,6 +17,7 @@ export async function GET(
     }
 
     // Verify hackathon exists
+    const supabase = createServerClient();
     const { data: hackathon, error: hackathonError } = await supabase
       .from('hackathons')
       .select('*')
@@ -54,10 +55,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const hackathonId = params.id;
+    const { id: hackathonId } = await context.params;
 
     // Validate hackathon ID
     if (!hackathonId) {
@@ -67,16 +68,18 @@ export async function POST(
       }, { status: 400 });
     }
 
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
+    // Get authenticated user
+    const { user, error: authError } = await getAuthenticatedUser(request);
     
-    if (!user) {
+    if (authError || !user) {
       return NextResponse.json({
         error: "Authentication required",
         code: "UNAUTHENTICATED"
       }, { status: 401 });
     }
 
+    const supabase = createServerClient();
+    
     // Verify hackathon exists
     const { data: hackathon, error: hackathonError } = await supabase
       .from('hackathons')

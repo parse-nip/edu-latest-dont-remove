@@ -3,10 +3,10 @@ import { supabase } from '@/lib/supabase';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const teamId = params.id;
+    const { id: teamId } = await context.params;
     
     // Validate team ID
     if (!teamId) {
@@ -16,10 +16,10 @@ export async function POST(
       }, { status: 400 });
     }
 
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
+    // Get authenticated user
+    const { user, error: authError } = await getAuthenticatedUser(request);
     
-    if (!user) {
+    if (authError || !user) {
       return NextResponse.json({
         error: "Authentication required",
         code: "UNAUTHENTICATED"
@@ -37,6 +37,9 @@ export async function POST(
       }, { status: 400 });
     }
 
+    // 1. Validate team exists and get hackathon info
+    const supabase = createServerClient();
+    
     // 1. Validate team exists and get hackathon info
     const { data: teamWithHackathon, error: teamError } = await supabase
       .from('teams')

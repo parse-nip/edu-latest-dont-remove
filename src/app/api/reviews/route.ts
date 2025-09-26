@@ -3,18 +3,18 @@ import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { submission_id, judge_id, rating, comments } = body;
-
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
+    // Get authenticated user
+    const { user, error: authError } = await getAuthenticatedUser(request);
     
-    if (!user) {
+    if (authError || !user) {
       return NextResponse.json({
         error: "Authentication required",
         code: "UNAUTHENTICATED"
       }, { status: 401 });
     }
+
+    const body = await request.json();
+    const { submission_id, judge_id, rating, comments } = body;
 
     // Validate required fields
     if (!submission_id) {
@@ -47,6 +47,8 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    const supabase = createServerClient();
+    
     // Check if submission exists
     const { data: submission, error: submissionError } = await supabase
       .from('submissions')
