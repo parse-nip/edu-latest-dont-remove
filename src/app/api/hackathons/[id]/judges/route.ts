@@ -3,10 +3,10 @@ import { supabase } from '@/lib/supabase';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const hackathonId = params.id;
+    const { id: hackathonId } = await context.params;
     
     if (!hackathonId) {
       return NextResponse.json({ 
@@ -53,10 +53,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const hackathonId = params.id;
+    const { id: hackathonId } = await context.params;
     
     if (!hackathonId) {
       return NextResponse.json({ 
@@ -65,10 +65,10 @@ export async function POST(
       }, { status: 400 });
     }
 
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
+    // Get authenticated user
+    const { user, error: authError } = await getAuthenticatedUser(request);
     
-    if (!user) {
+    if (authError || !user) {
       return NextResponse.json({
         error: "Authentication required",
         code: "UNAUTHENTICATED"
@@ -105,6 +105,8 @@ export async function POST(
       }, { status: 400 });
     }
 
+    const supabase = createServerClient();
+    
     // Create new judge
     const { data, error } = await supabase
       .from('judges')

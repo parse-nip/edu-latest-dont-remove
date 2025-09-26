@@ -72,9 +72,18 @@ export default function JoinHackathonPage({ params }: { params: { id: string } }
     setError(null)
 
     try {
+      // Get auth token from Supabase client
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No authentication token found');
+      }
+
       const response = await fetch(`/api/hackathons/${params.id}/join`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           display_name: formData.displayName.trim(),
           role: formData.role,

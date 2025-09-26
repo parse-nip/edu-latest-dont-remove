@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createServerClient, getAuthenticatedUser } from '@/lib/supabase-server';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
     const search = searchParams.get('search');
 
+    const supabase = createServerClient();
     let query = supabase
       .from('hackathons')
       .select('*')
@@ -38,18 +39,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const requestBody = await request.json();
-    const { name, description, start_at, end_at, status, max_team_size } = requestBody;
-
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
+    const { user, error: authError } = await getAuthenticatedUser(request);
     
-    if (!user) {
+    if (authError || !user) {
       return NextResponse.json({ 
         error: "Authentication required",
         code: "UNAUTHENTICATED" 
       }, { status: 401 });
     }
+
+    const requestBody = await request.json();
+    const { name, description, start_at, end_at, status, max_team_size } = requestBody;
 
     // Validate required fields
     if (!name) {
@@ -84,6 +84,8 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    const supabase = createServerClient();
+    
     // Create hackathon
     const { data, error } = await supabase
       .from('hackathons')

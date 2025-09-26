@@ -77,10 +77,17 @@ export default function CreateHackathonPage() {
     setError(null)
 
     try {
+      // Get auth token from Supabase client
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No authentication token found');
+      }
+
       const response = await fetch('/api/hackathons', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           name: formData.name.trim(),

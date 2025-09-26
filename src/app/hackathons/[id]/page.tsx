@@ -159,9 +159,18 @@ export default function HackathonDetail({ params }: { params: { id: string } }) 
     
     setIsCreatingTeam(true)
     try {
+      // Get auth token from Supabase client
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No authentication token found');
+      }
+
       const response = await fetch(`/api/hackathons/${params.id}/teams`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ name: teamName.trim() })
       })
 
@@ -185,9 +194,18 @@ export default function HackathonDetail({ params }: { params: { id: string } }) 
     
     setIsCreatingJudge(true)
     try {
+      // Get auth token from Supabase client
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No authentication token found');
+      }
+
       const response = await fetch(`/api/hackathons/${params.id}/judges`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ name: judgeName.trim() })
       })
 

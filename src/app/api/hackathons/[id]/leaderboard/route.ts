@@ -3,10 +3,10 @@ import { supabase } from '@/lib/supabase';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const hackathonId = params.id;
+    const { id: hackathonId } = await context.params;
     
     if (!hackathonId) {
       return NextResponse.json({
@@ -16,6 +16,7 @@ export async function GET(
     }
 
     // Check if hackathon exists
+    const supabase = createServerClient();
     const { data: hackathon, error: hackathonError } = await supabase
       .from('hackathons')
       .select('*')
