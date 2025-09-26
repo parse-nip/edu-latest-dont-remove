@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { supabase } from "@/lib/supabase"
-import { Users, FileText, Trophy, Clock, Calendar, Target, Code, Presentation, Bell, Plus, Edit, Trash2, Gavel, HelpCircle, Crown, UserCheck } from "lucide-react"
+import { Users, FileText, Trophy, Clock, Calendar, Target, Code, Presentation, Bell, Plus, CreditCard as Edit, Trash2, Gavel, Circle as HelpCircle, Crown, UserCheck } from "lucide-react"
 import Link from "next/link"
 
 interface HackathonStats {
