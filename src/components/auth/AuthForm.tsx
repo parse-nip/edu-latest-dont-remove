@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { signUp, signIn, type UserRole } from "@/lib/auth"
+import { supabase } from "@/lib/auth"
 import { CircleAlert as AlertCircle, User, UserCheck, Crown } from "lucide-react"
 
 export function AuthForm() {
@@ -214,6 +215,15 @@ export function AuthForm() {
             <div className="flex items-center gap-2 p-3 mt-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
               <AlertCircle className="h-4 w-4" />
               {error}
+            </div>
+          )}
+          
+          {!supabase && (
+            <div className="p-4 mt-4 text-sm bg-yellow-50 border border-yellow-200 rounded-md">
+              <p className="font-medium text-yellow-800 mb-2">Supabase Configuration Required</p>
+              <p className="text-yellow-700 text-xs">
+                Please click "Connect to Supabase" in the top right to set up authentication.
+              </p>
             </div>
           )}
         </CardContent>
