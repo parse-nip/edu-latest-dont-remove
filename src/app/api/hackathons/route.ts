@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     const cookieStore = await cookies();
 
     // Get user from session (getAuthenticatedUser returns { user, error })
-    const { user, error: authError } = await getAuthenticatedUser(cookieStore, request);
+    const { user, error: authError, supabase: authenticatedSupabase } = await getAuthenticatedUser(cookieStore, request);
     console.log('[API] getUser result:', { user: user ? 'present' : 'null', authError });
 
     if (authError || !user) {
@@ -65,8 +65,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // await the client factory
-    const supabase = await createSupabaseServerClient(cookieStore);
+    // Use the authenticated client from getAuthenticatedUser
+    const supabase = authenticatedSupabase || await createSupabaseServerClient(cookieStore);
 
     const requestBody = await request.json();
     console.log('[API] Request body:', requestBody);
