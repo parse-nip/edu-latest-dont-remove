@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -29,6 +30,8 @@ export default function HackathonsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [dbInitialized, setDbInitialized] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
     console.log('[HACKATHONS PAGE] useEffect triggered', { 
@@ -58,16 +61,50 @@ export default function HackathonsPage() {
 
       console.log('[HACKATHONS PAGE] Supabase response:', { data, error })
       
-      if (error) throw error
-      
-      console.log('[HACKATHONS PAGE] Setting hackathons data:', data)
-      setHackathons(data || [])
+      if (error) {
+        if (error.message?.includes('hackathons')) {
+          console.log('[HACKATHONS PAGE] Table not found, initializing database...')
+          await initializeDatabase()
+        } else {
+          throw error
+        }
+      } else {
+        setDbInitialized(true)
+        console.log('[HACKATHONS PAGE] Setting hackathons data:', data)
+        setHackathons(data || [])
+      }
     } catch (err) {
       console.error('[HACKATHONS PAGE] Error fetching hackathons:', err)
       setError('Failed to load hackathons')
     } finally {
       console.log('[HACKATHONS PAGE] Setting isLoading to false')
       setIsLoading(false)
+    }
+  }
+
+  const initializeDatabase = async () => {
+    try {
+      console.log('[HACKATHONS PAGE] Initializing database...')
+      const response = await fetch('/api/init-db', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      const data = await response.json()
+      console.log('[HACKATHONS PAGE] DB init response:', data)
+      
+      if (response.ok) {
+        setDbInitialized(true)
+        // Retry fetching hackathons
+        await fetchHackathons()
+      } else {
+        setError('Failed to initialize database')
+      }
+    } catch (error) {
+      console.error('[HACKATHONS PAGE] DB initialization error:', error)
+      setError('Failed to initialize database')
     }
   }
 
@@ -155,7 +192,10 @@ export default function HackathonsPage() {
             Welcome back, {user.displayName}! Create events, join teams, and build amazing projects.
           </p>
         </div>
-        <Button asChild>
+        <Button 
+          onClick={() => router.push('/hackathons/create')}
+          asChild
+        >
           <Link href="/hackathons/create">
             <Plus className="h-4 w-4 mr-2" />
             Create New Hackathon
@@ -175,6 +215,12 @@ export default function HackathonsPage() {
           />
         </div>
       </div>
+
+      {!dbInitialized && isLoading && (
+        <div className="text-center py-8">
+          <p className="text-gray-600">Setting up database...</p>
+        </div>
+      )}
 
       {error && (
         <Card className="mb-6 border-destructive">
