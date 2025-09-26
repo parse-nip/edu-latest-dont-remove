@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createServerClient, getAuthenticatedUser } from '@/lib/supabase-server';
 
 export async function POST(
   request: NextRequest,
@@ -117,7 +117,6 @@ export async function POST(
     }
 
     // 5. Add participant to team if all validations pass
-    const { data, error } = await supabase
       .from('team_members')
       .insert({
         team_id: teamId,
