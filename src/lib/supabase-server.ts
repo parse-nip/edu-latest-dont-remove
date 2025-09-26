@@ -1,10 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { NextRequest } from 'next/server'
+import type { ReadonlyRequestCookies } from 'next/dist/server/web/spec-extension/adapters/request-cookies'
 
-export function createSupabaseServerClient() {
-  const cookieStore = cookies()
-  
+export function createSupabaseServerClient(cookieStore: ReadonlyRequestCookies) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -37,19 +35,27 @@ export function createSupabaseServerClient() {
 }
 
 export async function getAuthenticatedUser(request?: NextRequest) {
-  const supabase = createSupabaseServerClient()
-  
   // If request is provided, try to get token from Authorization header
   if (request) {
     const authHeader = request.headers.get('Authorization')
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7)
+      // Create a minimal Supabase client for token validation
+      const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            get() { return undefined },
+            set() {},
+            remove() {},
+          },
+        }
+      )
       const { data: { user }, error } = await supabase.auth.getUser(token)
       return { user, error }
     }
   }
 
-  // Otherwise get user from session
-  const { data: { user }, error } = await supabase.auth.getUser()
-  return { user, error }
+  return { user: null, error: new Error('No authentication token provided') }
 }

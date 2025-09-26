@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, getAuthenticatedUser } from '@/lib/supabase-server';
+import { createSupabaseServerClient, getAuthenticatedUser } from '@/lib/supabase-server';
+import { cookies } from 'next/headers';
 
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const cookieStore = cookies();
     const { id: hackathonId } = await context.params;
     
     if (!hackathonId) {
@@ -16,15 +18,16 @@ export async function POST(
     }
 
     // Get current user
-    const { data: { user } } = await supabase.auth.getUser();
+    const { user, error: authError } = await getAuthenticatedUser(request);
     
-    if (!user) {
+    if (authError || !user) {
       return NextResponse.json({
         error: "Authentication required",
         code: "UNAUTHENTICATED"
       }, { status: 401 });
     }
 
+    const supabase = createSupabaseServerClient(cookieStore);
     const requestBody = await request.json();
     const { display_name, role, join_code } = requestBody;
 

@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase-server';
+import { createSupabaseServerClient, getAuthenticatedUser } from '@/lib/supabase-server';
+import { cookies } from 'next/headers';
 
 export async function GET(request: NextRequest) {
   try {
+    const cookieStore = cookies();
     const { searchParams } = new URL(request.url);
     const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 100);
     const offset = parseInt(searchParams.get('offset') || '0');
     const search = searchParams.get('search');
 
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseServerClient(cookieStore);
     let query = supabase
       .from('hackathons')
       .select('*')
@@ -41,10 +43,8 @@ export async function POST(request: NextRequest) {
   try {
     console.log('[API] POST /api/hackathons called')
     
-    const supabase = createSupabaseServerClient();
-    
     // Get user from session
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { user, error: authError } = await getAuthenticatedUser(request);
     console.log('[API] getUser result:', { user: user ? 'present' : 'null', authError })
 
     if (authError || !user) {

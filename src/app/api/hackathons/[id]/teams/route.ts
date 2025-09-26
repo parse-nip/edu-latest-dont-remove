@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, getAuthenticatedUser } from '@/lib/supabase-server';
+import { createSupabaseServerClient, getAuthenticatedUser } from '@/lib/supabase-server';
+import { cookies } from 'next/headers';
 
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const cookieStore = cookies();
     const { id: hackathonId } = await context.params;
 
     // Validate hackathon ID
@@ -17,7 +19,7 @@ export async function GET(
     }
 
     // Verify hackathon exists
-    const supabase = createServerClient();
+    const supabase = createSupabaseServerClient(cookieStore);
     const { data: hackathon, error: hackathonError } = await supabase
       .from('hackathons')
       .select('*')
@@ -58,6 +60,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const cookieStore = cookies();
     const { id: hackathonId } = await context.params;
 
     // Validate hackathon ID
@@ -69,16 +72,7 @@ export async function POST(
     }
 
     // Get user from session
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({
-        error: "Authentication required",
-        code: "UNAUTHENTICATED"
-      }, { status: 401 });
-    }
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const { user, error: authError } = await getAuthenticatedUser(request);
     
     if (authError || !user) {
       return NextResponse.json({
@@ -87,6 +81,7 @@ export async function POST(
       }, { status: 401 });
     }
 
+    const supabase = createSupabaseServerClient(cookieStore);
     // Verify hackathon exists
     const { data: hackathon, error: hackathonError } = await supabase
       .from('hackathons')

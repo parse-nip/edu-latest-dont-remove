@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSupabaseServerClient, getAuthenticatedUser } from '@/lib/supabase-server';
+import { cookies } from 'next/headers';
 
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const cookieStore = cookies();
     const { id: teamId } = await context.params;
     
     // Validate team ID
@@ -37,7 +39,7 @@ export async function POST(
       }, { status: 400 });
     }
 
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseServerClient(cookieStore);
     
     // 1. Validate team exists and get hackathon info
     const { data: teamWithHackathon, error: teamError } = await supabase
