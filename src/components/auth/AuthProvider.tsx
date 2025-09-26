@@ -17,41 +17,89 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    console.log('[AUTH PROVIDER] Initial useEffect running')
-    // Get initial session
-    getCurrentUser()
-      .then(user => {
-        console.log('[AUTH PROVIDER] Initial getCurrentUser result:', user)
-        setUser(user)
-      })
-      .finally(() => {
-        console.log('[AUTH PROVIDER] Initial loading complete')
+    console.log('[AUTH PROVIDER] Starting initialization')
+    
+    let timeoutId: NodeJS.Timeout
+    
+    const initAuth = async () => {
+      try {
+        console.log('[AUTH PROVIDER] Getting initial session...')
+        const { data: { session } } = await supabase.auth.getSession()
+        console.log('[AUTH PROVIDER] Initial session:', session ? 'present' : 'null')
+        
+        if (session?.user) {
+          console.log('[AUTH PROVIDER] Session user found, getting current user...')
+          const authUser = await getCurrentUser()
+          console.log('[AUTH PROVIDER] getCurrentUser result:', authUser)
+          setUser(authUser)
+        } else {
+          console.log('[AUTH PROVIDER] No session, setting user to null')
+          setUser(null)
+        }
+      } catch (error) {
+        console.error('[AUTH PROVIDER] Error in initAuth:', error)
+        setUser(null)
+      } finally {
+        console.log('[AUTH PROVIDER] Setting loading to false')
         setLoading(false)
-      })
+      }
+    }
+
+    // Add timeout to prevent infinite loading
+    timeoutId = setTimeout(() => {
+      console.error('[AUTH PROVIDER] Auth initialization timeout, forcing loading to false')
+      setLoading(false)
+    }, 15000)
+
+    initAuth().finally(() => {
+      clearTimeout(timeoutId)
+    })
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[AUTH PROVIDER] Auth state change:', { event, session: session ? 'present' : 'null' })
-      if (session?.user) {
-        const authUser = await getCurrentUser()
-        console.log('[AUTH PROVIDER] Session user found, authUser:', authUser)
-        setUser(authUser)
-      } else {
-        console.log('[AUTH PROVIDER] No session, setting user to null')
+      
+      try {
+        if (session?.user) {
+          console.log('[AUTH PROVIDER] Session user found in state change, getting current user...')
+          const authUser = await getCurrentUser()
+          console.log('[AUTH PROVIDER] getCurrentUser result in state change:', authUser)
+          setUser(authUser)
+        } else {
+          console.log('[AUTH PROVIDER] No session in state change, setting user to null')
+          setUser(null)
+        }
+      } catch (error) {
+        console.error('[AUTH PROVIDER] Error in auth state change:', error)
         setUser(null)
       }
-      setLoading(false)
+      
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_OUT') {
+        setLoading(false)
+      }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      console.log('[AUTH PROVIDER] Cleaning up subscription')
+      subscription.unsubscribe()
+      clearTimeout(timeoutId)
+    }
   }, [])
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    setUser(null)
+    console.log('[AUTH PROVIDER] handleSignOut called')
+    try {
+      await supabase.auth.signOut()
+      setUser(null)
+      console.log('[AUTH PROVIDER] Sign out successful')
+    } catch (error) {
+      console.error('[AUTH PROVIDER] Sign out error:', error)
+    }
   }
+
+  console.log('[AUTH PROVIDER] Render - user:', user ? `${user.email} (${user.role})` : 'null', 'loading:', loading)
 
   return (
     <AuthContext.Provider value={{ user, loading, signOut: handleSignOut }}>

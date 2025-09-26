@@ -33,20 +33,24 @@ export function AuthForm() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('[AUTH FORM] handleSignUp called with:', signUpForm)
     setIsLoading(true)
     setError(null)
 
-    const { data, error } = await signUp(
+    const { user, error } = await signUp(
       signUpForm.email,
       signUpForm.password,
       signUpForm.displayName,
-      signUpForm.role,
-      signUpForm.joinCode || undefined
+      signUpForm.role
     )
 
+    console.log('[AUTH FORM] signUp result:', { user, error })
+
     if (error) {
-      setError(error.message)
+      console.error('[AUTH FORM] signUp error:', error)
+      setError(String(error))
     } else {
+      console.log('[AUTH FORM] signUp successful, redirecting...')
       router.push("/hackathons")
     }
     
@@ -55,14 +59,19 @@ export function AuthForm() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('[AUTH FORM] handleSignIn called with:', { email: signInForm.email })
     setIsLoading(true)
     setError(null)
 
-    const { data, error } = await signIn(signInForm.email, signInForm.password)
+    const { user, error } = await signIn(signInForm.email, signInForm.password)
+
+    console.log('[AUTH FORM] signIn result:', { user, error })
 
     if (error) {
-      setError(error.message)
+      console.error('[AUTH FORM] signIn error:', error)
+      setError(String(error))
     } else {
+      console.log('[AUTH FORM] signIn successful, redirecting...')
       router.push("/hackathons")
     }
     
@@ -190,15 +199,6 @@ export function AuthForm() {
                       </SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="join-code">Hackathon Join Code (Optional)</Label>
-                  <Input
-                    id="join-code"
-                    placeholder="Enter code from your organizer"
-                    value={signUpForm.joinCode}
-                    onChange={(e) => setSignUpForm(prev => ({ ...prev, joinCode: e.target.value }))}
-                  />
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? "Creating account..." : "Sign Up"}
