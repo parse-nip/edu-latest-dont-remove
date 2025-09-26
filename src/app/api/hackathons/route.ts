@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, getAuthenticatedUser } from '@/lib/supabase-server';
+import { supabase } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,7 +8,6 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
     const search = searchParams.get('search');
 
-    const supabase = createServerClient();
     let query = supabase
       .from('hackathons')
       .select('*')

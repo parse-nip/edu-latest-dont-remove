@@ -1,28 +1,15 @@
-import { createClient } from '@supabase/supabase-js'
-import { Database } from './database.types'
-
-const supabaseUrl = 'https://lvcyczjzgnofbzafihpz.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx2Y3ljemp6Z25vZmJ6YWZpaHB6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg4NTU4MTgsImV4cCI6MjA3NDQzMTgxOH0.s-6ieMv2zAVJxf8Yb0JEYb-9__9t2C7G832kLq2JXhc'
-
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/hackathons` : undefined,
-    persistSession: true,
-    detectSessionInUrl: true
-  }
-})
+import { supabase } from './supabase'
 
 export type UserRole = 'participant' | 'judge' | 'organizer'
 
 export interface AuthUser {
   id: string
   email: string
-  role: UserRole
   displayName: string
-  joinCode?: string
+  role: UserRole
 }
 
-export const signUp = async (email: string, password: string, displayName: string, role: UserRole, joinCode?: string) => {
+export const signUp = async (email: string, password: string, displayName: string, role: UserRole = 'participant') => {
   try {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -30,15 +17,14 @@ export const signUp = async (email: string, password: string, displayName: strin
       options: {
         data: {
           display_name: displayName,
-          role,
-          join_code: joinCode,
+          role: role
         }
       }
     })
     
-    return { data, error }
+    return { user: data.user, error }
   } catch (error) {
-    return { data: null, error }
+    return { user: null, error }
   }
 }
 
@@ -49,9 +35,9 @@ export const signIn = async (email: string, password: string) => {
       password
     })
     
-    return { data, error }
+    return { user: data.user, error }
   } catch (error) {
-    return { data: null, error }
+    return { user: null, error }
   }
 }
 
@@ -73,9 +59,8 @@ export const getCurrentUser = async (): Promise<AuthUser | null> => {
     return {
       id: user.id,
       email: user.email!,
-      role: user.user_metadata.role || 'participant',
-      displayName: user.user_metadata.display_name || user.email!,
-      joinCode: user.user_metadata.join_code
+      displayName: user.user_metadata?.display_name || user.email!,
+      role: user.user_metadata?.role || 'participant'
     }
   } catch (error) {
     console.error('Error getting current user:', error)

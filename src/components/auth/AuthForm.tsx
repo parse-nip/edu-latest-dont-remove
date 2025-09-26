@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { signUp, signIn, type UserRole } from "@/lib/auth"
-import { supabase } from "@/lib/auth"
 
 export function AuthForm() {
   const router = useRouter()
@@ -211,12 +210,6 @@ export function AuthForm() {
           {error && (
             <div className="p-4 mt-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
               {error}
-            </div>
-          )}
-          
-          {!supabase && (
-            <div className="p-4 mt-4 text-sm bg-yellow-50 border border-yellow-200 rounded-md">
-              Authentication service is not available. Please check your configuration.
             </div>
           )}
         </CardContent>
