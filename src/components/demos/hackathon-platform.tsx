@@ -1,921 +1,1038 @@
-"use client"
+"use client";
 
-import React, { useEffect, useState } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Calendar,
-  Users,
-  Trophy,
-  Plus,
-  Trash2,
-  Bell,
-  FileText,
-  Gavel,
+import React, { useState, useMemo, useRef } from "react";
+import { 
+  Users, 
+  FileText, 
+  Bell, 
+  Clock, 
+  Trophy, 
+  Star, 
+  CheckCircle, 
+  UserPlus, 
+  Settings, 
+  BarChart3, 
+  MessageSquare, 
   HelpCircle,
+  ChevronUp,
+  ChevronDown,
+  Search,
+  Filter,
+  UserPlus2Icon,
+  CheckCircleIcon,
+  Link2Icon,
+  X
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
-interface Announcement {
-  id: string;
-  title: string;
-  content: string;
-  timestamp: string;
-  priority: "low" | "medium" | "high";
-}
+// Team Invite Dialog Component
+function TeamInviteDialog() {
+  const [members, setMembers] = useState([{ email: "", role: "Member" }]);
+  const [copied, setCopied] = useState(false);
+  const linkRef = useRef<HTMLInputElement>(null);
 
-interface Rule {
-  id: string;
-  title: string;
-  description: string;
-}
+  const addMember = () => setMembers([...members, { email: "", role: "Member" }]);
 
-interface JudgingCriteria {
-  id: string;
-  name: string;
-  description: string;
-  weight: number;
-}
+  const updateMember = (index: number, key: "email" | "role", value: string) => {
+    const updated = [...members];
+    updated[index][key] = value;
+    setMembers(updated);
+  };
 
-interface Judge {
-  id: string;
-  name: string;
-  title: string;
-  company: string;
-  expertise: string[];
-}
-
-interface Team {
-  id: string;
-  name: string;
-  members: string[];
-  project: string;
-  status: "registered" | "submitted" | "judging";
-}
-
-interface FAQ {
-  id: string;
-  question: string;
-  answer: string;
-}
-
-interface HackathonData {
-  name: string;
-  description: string;
-  startDate: string;
-  endDate: string;
-  maxParticipants: number;
-  maxTeamSize: number;
-  announcements: Announcement[];
-  rules: Rule[];
-  judgingCriteria: JudgingCriteria[];
-  judges: Judge[];
-  teams: Team[];
-  faqs: FAQ[];
-}
-
-export const HackathonPlatform: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"participant" | "admin">(
-    "participant"
-  );
-  const [currentRole, setCurrentRole] = useState<string>("participant");
-  
-  // Read role from localStorage on mount
-  useEffect(() => {
-    try {
-      const role = localStorage.getItem("demoRole") || "participant";
-      setCurrentRole(role);
-    } catch {}
-  }, []);
-
-  // Enforce non-admin tab when not organizer
-  useEffect(() => {
-    if (currentRole !== "organizer" && activeTab === "admin") {
-      setActiveTab("participant");
-    }
-  }, [currentRole, activeTab]);
-
-  const [hackathonData, setHackathonData] = useState<HackathonData>({
-    name: "TechHack 2024",
-    description: "Build the future with cutting-edge technology",
-    startDate: "2024-03-15",
-    endDate: "2024-03-17",
-    maxParticipants: 200,
-    maxTeamSize: 4,
-    announcements: [
-      {
-        id: "1",
-        title: "Welcome to TechHack 2024!",
-        content:
-          "Registration is now open. Get ready for an amazing weekend of innovation!",
-        timestamp: "2024-02-15T10:00:00Z",
-        priority: "high",
-      },
-      {
-        id: "2",
-        title: "Venue Information",
-        content:
-          "The hackathon will be held at Tech Center, 123 Innovation Drive.",
-        timestamp: "2024-02-20T14:30:00Z",
-        priority: "medium",
-      },
-    ],
-    rules: [
-      {
-        id: "1",
-        title: "Team Formation",
-        description:
-          "Teams can have 1-4 members. You can form teams before or during the event.",
-      },
-      {
-        id: "2",
-        title: "Project Requirements",
-        description:
-          "All code must be written during the hackathon. You can use existing APIs and libraries.",
-      },
-      {
-        id: "3",
-        title: "Submission Deadline",
-        description:
-          "All projects must be submitted by Sunday 6 PM. Late submissions will not be accepted.",
-      },
-    ],
-    judgingCriteria: [
-      {
-        id: "1",
-        name: "Innovation",
-        description: "How creative and original is the solution?",
-        weight: 30,
-      },
-      {
-        id: "2",
-        name: "Technical Implementation",
-        description: "Quality of code and technical execution",
-        weight: 25,
-      },
-      {
-        id: "3",
-        name: "Impact",
-        description: "Potential real-world impact and usefulness",
-        weight: 25,
-      },
-      {
-        id: "4",
-        name: "Presentation",
-        description: "Quality of demo and pitch",
-        weight: 20,
-      },
-    ],
-    judges: [
-      {
-        id: "1",
-        name: "Sarah Chen",
-        title: "Senior Software Engineer",
-        company: "Google",
-        expertise: ["AI/ML", "Backend Development"],
-      },
-      {
-        id: "2",
-        name: "Mike Rodriguez",
-        title: "Product Manager",
-        company: "Microsoft",
-        expertise: ["Product Strategy", "UX Design"],
-      },
-    ],
-    teams: [
-      {
-        id: "1",
-        name: "Code Warriors",
-        members: ["Alice Johnson", "Bob Smith", "Carol Davis"],
-        project: "AI-Powered Study Assistant",
-        status: "registered",
-      },
-      {
-        id: "2",
-        name: "Tech Innovators",
-        members: ["David Wilson", "Eva Brown"],
-        project: "Sustainable Transport App",
-        status: "submitted",
-      },
-    ],
-    faqs: [
-      {
-        id: "1",
-        question: "What should I bring to the hackathon?",
-        answer:
-          "Bring your laptop, charger, and any hardware you might need. We'll provide food, drinks, and WiFi.",
-      },
-      {
-        id: "2",
-        question: "Can I participate remotely?",
-        answer:
-          "This is an in-person event, but we may consider hybrid participation for special circumstances.",
-      },
-      {
-        id: "3",
-        question: "What are the prizes?",
-        answer:
-          "First place: $5000, Second place: $3000, Third place: $1000, plus various sponsor prizes.",
-      },
-    ],
-  });
-
-  const [newAnnouncement, setNewAnnouncement] = useState<{
-    title: string;
-    content: string;
-    priority: "low" | "medium" | "high";
-  }>({ title: "", content: "", priority: "medium" });
-  const [newRule, setNewRule] = useState({ title: "", description: "" });
-  const [newCriteria, setNewCriteria] = useState({
-    name: "",
-    description: "",
-    weight: 0,
-  });
-  const [newJudge, setNewJudge] = useState({
-    name: "",
-    title: "",
-    company: "",
-    expertise: "",
-  });
-  const [newFAQ, setNewFAQ] = useState({ question: "", answer: "" });
-
-  const addAnnouncement = () => {
-    if (newAnnouncement.title && newAnnouncement.content) {
-      const announcement: Announcement = {
-        id: Date.now().toString(),
-        ...newAnnouncement,
-        timestamp: new Date().toISOString(),
-      };
-      setHackathonData((prev) => ({
-        ...prev,
-        announcements: [announcement, ...prev.announcements],
-      }));
-      setNewAnnouncement({ title: "", content: "", priority: "medium" });
+  const copyInviteLink = () => {
+    if (linkRef.current) {
+      navigator.clipboard.writeText(linkRef.current.value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
     }
   };
 
-  const addRule = () => {
-    if (newRule.title && newRule.description) {
-      const rule: Rule = {
-        id: Date.now().toString(),
-        ...newRule,
-      };
-      setHackathonData((prev) => ({
-        ...prev,
-        rules: [...prev.rules, rule],
-      }));
-      setNewRule({ title: "", description: "" });
-    }
-  };
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="flex items-center gap-2">
+          <UserPlus2Icon size={18} /> Invite Team
+        </Button>
+      </DialogTrigger>
 
-  const addCriteria = () => {
-    if (newCriteria.name && newCriteria.description && newCriteria.weight > 0) {
-      const criteria: JudgingCriteria = {
-        id: Date.now().toString(),
-        ...newCriteria,
-      };
-      setHackathonData((prev) => ({
-        ...prev,
-        judgingCriteria: [...prev.judgingCriteria, criteria],
-      }));
-      setNewCriteria({ name: "", description: "", weight: 0 });
-    }
-  };
+      <DialogContent className="sm:max-w-lg rounded-xl p-6 space-y-3">
+        <DialogHeader className="text-center space-y-1">
+          <DialogTitle>Invite Your Team</DialogTitle>
+          <DialogDescription>Quickly add team members and assign their roles.</DialogDescription>
+        </DialogHeader>
 
-  const addJudge = () => {
-    if (newJudge.name && newJudge.title && newJudge.company) {
-      const judge: Judge = {
-        id: Date.now().toString(),
-        ...newJudge,
-        expertise: newJudge.expertise
-          .split(",")
-          .map((e) => e.trim())
-          .filter((e) => e),
-      };
-      setHackathonData((prev) => ({
-        ...prev,
-        judges: [...prev.judges, judge],
-      }));
-      setNewJudge({ name: "", title: "", company: "", expertise: "" });
-    }
-  };
+        <div className="space-y-3">
+          {members.map((member, idx) => (
+            <div
+              key={idx}
+              className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 border rounded-lg p-3 shadow-sm hover:shadow-md transition"
+            >
+              <Input
+                placeholder="example@company.com"
+                value={member.email}
+                onChange={(e) => updateMember(idx, "email", e.target.value)}
+                className="flex-1"
+              />
+              <Select value={member.role} onValueChange={(val) => updateMember(idx, "role", val)}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Member">Member</SelectItem>
+                  <SelectItem value="Admin">Admin</SelectItem>
+                  <SelectItem value="Viewer">Viewer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          ))}
 
-  const addFAQ = () => {
-    if (newFAQ.question && newFAQ.answer) {
-      const faq: FAQ = {
-        id: Date.now().toString(),
-        ...newFAQ,
-      };
-      setHackathonData((prev) => ({
-        ...prev,
-        faqs: [...prev.faqs, faq],
-      }));
-      setNewFAQ({ question: "", answer: "" });
-    }
-  };
+          <Button variant="link" onClick={addMember} className="px-0 text-sm">
+            + Add another member
+          </Button>
+        </div>
 
-  const ParticipantView = () => (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold text-foreground">{hackathonData.name}</h1>
-        <p className="text-xl text-muted-foreground">{hackathonData.description}</p>
-        <div className="flex justify-center gap-6 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            {new Date(hackathonData.startDate).toLocaleDateString()} -
-            {" "}
-            {new Date(hackathonData.endDate).toLocaleDateString()}
+        <Button className="w-full">Send Invites</Button>
+
+        <hr className="my-4 border-t" />
+
+        <div className="space-y-2">
+          <Label htmlFor="team-link">Invite via Link</Label>
+          <div className="relative">
+            <Input
+              id="team-link"
+              ref={linkRef}
+              value="https://hackathon.com/invite/xyz123"
+              readOnly
+              className="pr-10"
+            />
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={copyInviteLink}
+                    className="absolute inset-y-0 end-0 flex items-center justify-center w-10 text-gray-500 hover:text-gray-700"
+                    disabled={copied}
+                  >
+                    {copied ? <CheckCircleIcon size={16} className="text-green-500" /> : <Link2Icon size={16} />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="px-2 py-1 text-xs">Copy invite link</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Max {hackathonData.maxParticipants} participants
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Data Table Component
+export type DataTableColumn<T> = {
+  key: keyof T;
+  header: string;
+  sortable?: boolean;
+  filterable?: boolean;
+  render?: (value: any, row: T) => React.ReactNode;
+  width?: string;
+};
+
+export type DataTableProps<T> = {
+  data: T[];
+  columns: DataTableColumn<T>[];
+  className?: string;
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  itemsPerPage?: number;
+  showPagination?: boolean;
+  striped?: boolean;
+  hoverable?: boolean;
+  bordered?: boolean;
+  compact?: boolean;
+  loading?: boolean;
+  emptyMessage?: string;
+  onRowClick?: (row: T, index: number) => void;
+};
+
+export function DataTable<T extends Record<string, any>>({
+  data,
+  columns,
+  className,
+  searchable = true,
+  searchPlaceholder = "Search...",
+  itemsPerPage = 10,
+  showPagination = true,
+  striped = false,
+  hoverable = true,
+  bordered = true,
+  compact = false,
+  loading = false,
+  emptyMessage = "No data available",
+  onRowClick,
+}: DataTableProps<T>) {
+  const [search, setSearch] = useState("");
+  const [sortConfig, setSortConfig] = useState<{
+    key: keyof T | null;
+    direction: "asc" | "desc";
+  }>({ key: null, direction: "asc" });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+
+  const filteredData = useMemo(() => {
+    let filtered = [...data];
+
+    if (search) {
+      filtered = filtered.filter((row) =>
+        columns.some((column) => {
+          const value = row[column.key];
+          return value?.toString().toLowerCase().includes(search.toLowerCase());
+        }),
+      );
+    }
+
+    Object.entries(columnFilters).forEach(([key, value]) => {
+      if (value) {
+        filtered = filtered.filter((row) => {
+          const rowValue = row[key as keyof T];
+          return rowValue
+            ?.toString()
+            .toLowerCase()
+            .includes(value.toLowerCase());
+        });
+      }
+    });
+
+    return filtered;
+  }, [data, search, columnFilters, columns]);
+
+  const sortedData = useMemo(() => {
+    if (!sortConfig.key) return filteredData;
+
+    return [...filteredData].sort((a, b) => {
+      const aValue = a[sortConfig.key!];
+      const bValue = b[sortConfig.key!];
+
+      if (aValue < bValue) {
+        return sortConfig.direction === "asc" ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === "asc" ? 1 : -1;
+      }
+      return 0;
+    });
+  }, [filteredData, sortConfig]);
+
+  const paginatedData = useMemo(() => {
+    if (!showPagination) return sortedData;
+
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return sortedData.slice(startIndex, startIndex + itemsPerPage);
+  }, [sortedData, currentPage, itemsPerPage, showPagination]);
+
+  const totalPages = Math.ceil(sortedData.length / itemsPerPage);
+
+  const handleSort = (key: keyof T) => {
+    setSortConfig((current) => ({
+      key,
+      direction:
+        current.key === key && current.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const handleColumnFilter = (key: string, value: string) => {
+    setColumnFilters((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+    setCurrentPage(1);
+  };
+
+  const clearColumnFilter = (key: string) => {
+    setColumnFilters((prev) => {
+      const newFilters = { ...prev };
+      delete newFilters[key];
+      return newFilters;
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className={cn("w-full bg-card rounded-2xl ", className)}>
+        <div className="animate-pulse p-6">
+          {searchable && <div className="mb-6 h-11 bg-muted rounded-2xl"></div>}
+          <div className="border border-border overflow-hidden">
+            <div className="bg-muted/30 h-14"></div>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-14 border-t border-border bg-card"
+              ></div>
+            ))}
+          </div>
+          <div className="mt-6 flex justify-between items-center">
+            <div className="h-4 bg-muted rounded w-48"></div>
+            <div className="flex gap-2">
+              <div className="h-9 w-20 bg-muted rounded-2xl"></div>
+              <div className="h-9 w-9 bg-muted rounded-2xl"></div>
+              <div className="h-9 w-9 bg-muted rounded-2xl"></div>
+              <div className="h-9 w-16 bg-muted rounded-2xl"></div>
+            </div>
           </div>
         </div>
       </div>
+    );
+  }
 
-      {/* Announcements */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            Announcements
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {hackathonData.announcements.map((announcement) => (
-            <div
-              key={announcement.id}
-              className="border-l-4 border-primary pl-4 space-y-2"
-            >
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold">{announcement.title}</h3>
-                <Badge
-                  variant={
-                    announcement.priority === "high"
-                      ? "destructive"
-                      : announcement.priority === "medium"
-                      ? "default"
-                      : "secondary"
-                  }
-                >
-                  {announcement.priority}
-                </Badge>
-              </div>
-              <p className="text-muted-foreground">{announcement.content}</p>
-              <p className="text-xs text-muted-foreground">
-                {new Date(announcement.timestamp).toLocaleString()}
-              </p>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* Rules */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Rules & Guidelines
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {hackathonData.rules.map((rule, index) => (
-            <div key={rule.id} className="space-y-2">
-              <h3 className="font-semibold">
-                {index + 1}. {rule.title}
-              </h3>
-              <p className="text-muted-foreground">{rule.description}</p>
-              {index < hackathonData.rules.length - 1 && <Separator />}
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* Judging Criteria */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Gavel className="h-5 w-5" />
-            Judging Criteria
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {hackathonData.judgingCriteria.map((criteria) => (
-            <div key={criteria.id} className="flex justify-between items-start">
-              <div className="space-y-1 flex-1">
-                <h3 className="font-semibold">{criteria.name}</h3>
-                <p className="text-muted-foreground">{criteria.description}</p>
-              </div>
-              <Badge variant="outline">{criteria.weight}%</Badge>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* Judges */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="h-5 w-5" />
-            Judges
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          {hackathonData.judges.map((judge) => (
-            <div key={judge.id} className="space-y-2 p-4 border rounded-lg">
-              <h3 className="font-semibold">{judge.name}</h3>
-              <p className="text-sm text-muted-foreground">
-                {judge.title} at {judge.company}
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {judge.expertise.map((skill, index) => (
-                  <Badge key={index} variant="secondary" className="text-xs">
-                    {skill}
-                  </Badge>
+  return (
+    <div
+      className={cn(
+        "w-full bg-card rounded-2xl",
+        bordered && "border border-border",
+        className,
+      )}
+    >
+      {searchable && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 border-b border-border">
+          <div className="relative w-full sm:w-auto sm:flex-1 sm:max-w-sm">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder={searchPlaceholder}
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-10 pr-4 py-2.5 border border-input rounded-2xl bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all"
+            />
+          </div>
+        </div>
+      )}
+      <div
+        className={cn(
+          "overflow-hidden bg-muted/30",
+          searchable ? "rounded-b-2xl" : "rounded-2xl",
+        )}
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-full">
+            <thead className="bg-muted/30">
+              <tr>
+                {columns.map((column) => (
+                  <th
+                    key={String(column.key)}
+                    className={cn(
+                      "text-left font-medium text-muted-foreground bg-muted/30",
+                      compact ? "px-4 py-3" : "px-6 py-4",
+                      column.sortable &&
+                        "cursor-pointer hover:bg-muted/50 transition-colors",
+                      column.width && `w-[${column.width}]`,
+                    )}
+                    onClick={() => column.sortable && handleSort(column.key)}
+                    style={column.width ? { width: column.width } : undefined}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold">
+                          {column.header}
+                        </span>
+                        {column.sortable && (
+                          <div className="flex flex-col">
+                            <ChevronUp
+                              className={cn(
+                                "h-3 w-3",
+                                sortConfig.key === column.key &&
+                                  sortConfig.direction === "asc"
+                                  ? "text-primary"
+                                  : "text-muted-foreground/40",
+                              )}
+                            />
+                            <ChevronDown
+                              className={cn(
+                                "h-3 w-3 -mt-1",
+                                sortConfig.key === column.key &&
+                                  sortConfig.direction === "desc"
+                                  ? "text-primary"
+                                  : "text-muted-foreground/40",
+                              )}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      {column.filterable && (
+                        <div className="relative">
+                          <Filter className="h-3 w-3 text-muted-foreground/50" />
+                        </div>
+                      )}
+                    </div>
+                    {column.filterable && (
+                      <div className="mt-3">
+                        <Input
+                          type="text"
+                          placeholder="Filter..."
+                          value={columnFilters[String(column.key)] || ""}
+                          onChange={(e) =>
+                            handleColumnFilter(
+                              String(column.key),
+                              e.target.value,
+                            )
+                          }
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full px-3 py-1.5 text-xs border border-input rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring transition-all"
+                        />
+                        {columnFilters[String(column.key)] && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              clearColumnFilter(String(column.key));
+                            }}
+                            className="absolute right-2 top-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </th>
                 ))}
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+              </tr>
+            </thead>
+            <tbody className="bg-card">
+              {paginatedData.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={columns.length}
+                    className={cn(
+                      "text-center text-muted-foreground bg-card",
+                      compact ? "px-4 py-12" : "px-6 py-16",
+                    )}
+                  >
+                    <div className="flex flex-col items-center space-y-2">
+                      <div className="text-4xl">📊</div>
+                      <div className="font-medium">{emptyMessage}</div>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                paginatedData.map((row, index) => (
+                  <tr
+                    key={index}
+                    className={cn(
+                      "border-t border-border bg-card transition-colors",
+                      striped && index % 2 === 0 && "bg-muted/20",
+                      hoverable && "hover:bg-muted/30",
+                      onRowClick && "cursor-pointer",
+                    )}
+                    onClick={() => onRowClick?.(row, index)}
+                  >
+                    {columns.map((column) => (
+                      <td
+                        key={String(column.key)}
+                        className={cn(
+                          "text-sm text-foreground",
+                          compact ? "px-4 py-3" : "px-6 py-4",
+                        )}
+                      >
+                        {column.render
+                          ? column.render(row[column.key], row)
+                          : String(row[column.key] ?? "")}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {showPagination && totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-card border-t border-border">
+          <div className="text-sm text-muted-foreground order-2 sm:order-1">
+            Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
+            {Math.min(currentPage * itemsPerPage, sortedData.length)} of{" "}
+            {sortedData.length} results
+          </div>
+          <div className="flex items-center gap-2 order-1 sm:order-2">
+            <Button
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              variant="outline"
+              size="sm"
+            >
+              Previous
+            </Button>
+            <div className="hidden sm:flex items-center gap-1">
+              {Array.from({ length: Math.min(totalPages, 5) }).map((_, i) => {
+                const pageNumber =
+                  currentPage <= 3
+                    ? i + 1
+                    : currentPage >= totalPages - 2
+                      ? totalPages - 4 + i
+                      : currentPage - 2 + i;
 
-      {/* FAQ */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <HelpCircle className="h-5 w-5" />
-            Frequently Asked Questions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Accordion type="single" collapsible className="w-full">
-            {hackathonData.faqs.map((faq) => (
-              <AccordionItem key={faq.id} value={faq.id}>
-                <AccordionTrigger>{faq.question}</AccordionTrigger>
-                <AccordionContent>{faq.answer}</AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </CardContent>
-      </Card>
+                if (pageNumber < 1 || pageNumber > totalPages) return null;
+
+                return (
+                  <Button
+                    key={pageNumber}
+                    onClick={() => setCurrentPage(pageNumber)}
+                    variant={currentPage === pageNumber ? "default" : "outline"}
+                    size="sm"
+                    className="w-9 h-9 p-0"
+                  >
+                    {pageNumber}
+                  </Button>
+                );
+              })}
+            </div>
+            <Button
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+              }
+              disabled={currentPage === totalPages}
+              variant="outline"
+              size="sm"
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
 
-  const AdminView = () => (
+// Main Dashboard Component
+interface DashboardProps {
+  defaultView?: "participant" | "judge" | "organizer";
+}
+
+type ViewType = "participant" | "judge" | "organizer";
+
+interface Announcement {
+  id: number;
+  title: string;
+  content: string;
+  priority: "high" | "medium" | "low";
+  timestamp: string;
+}
+
+interface Project {
+  id: number;
+  name: string;
+  team: string;
+  category: string;
+  status: "submitted" | "in-review" | "scored";
+  score?: number;
+}
+
+interface TeamInvitation {
+  id: number;
+  teamName: string;
+  invitedBy: string;
+  timestamp: string;
+}
+
+function HackathonDashboard({ defaultView = "participant" }: DashboardProps) {
+  const [currentView, setCurrentView] = useState<ViewType>(defaultView);
+
+  const announcements: Announcement[] = [
+    {
+      id: 1,
+      title: "Submission Deadline Extended",
+      content: "The project submission deadline has been extended to 11:59 PM tomorrow.",
+      priority: "high",
+      timestamp: "2 hours ago"
+    },
+    {
+      id: 2,
+      title: "Lunch Break",
+      content: "Lunch will be served in the main hall from 12:00 PM to 1:00 PM.",
+      priority: "medium",
+      timestamp: "4 hours ago"
+    },
+    {
+      id: 3,
+      title: "WiFi Information",
+      content: "WiFi Network: HackathonGuest, Password: hack2024",
+      priority: "low",
+      timestamp: "6 hours ago"
+    }
+  ];
+
+  const projects: Project[] = [
+    {
+      id: 1,
+      name: "EcoTracker",
+      team: "Green Coders",
+      category: "Sustainability",
+      status: "submitted"
+    },
+    {
+      id: 2,
+      name: "HealthBot AI",
+      team: "MedTech Innovators",
+      category: "Healthcare",
+      status: "in-review"
+    },
+    {
+      id: 3,
+      name: "FinanceFlow",
+      team: "Money Masters",
+      category: "Fintech",
+      status: "scored",
+      score: 85
+    }
+  ];
+
+  const teamInvitations: TeamInvitation[] = [
+    {
+      id: 1,
+      teamName: "Code Warriors",
+      invitedBy: "John Doe",
+      timestamp: "1 hour ago"
+    },
+    {
+      id: 2,
+      teamName: "Tech Titans",
+      invitedBy: "Jane Smith",
+      timestamp: "3 hours ago"
+    }
+  ];
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case "high":
+        return "bg-red-100 text-red-800 border-red-200";
+      case "medium":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "low":
+        return "bg-blue-100 text-blue-800 border-blue-200";
+      default:
+        return "bg-gray-100 text-gray-800 border-gray-200";
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "submitted":
+        return "bg-green-100 text-green-800";
+      case "in-review":
+        return "bg-yellow-100 text-yellow-800";
+      case "scored":
+        return "bg-blue-100 text-blue-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const projectColumns: DataTableColumn<Project>[] = [
+    { key: "name", header: "Project Name", sortable: true, filterable: true },
+    { key: "team", header: "Team", sortable: true, filterable: true },
+    { key: "category", header: "Category", sortable: true, filterable: true },
+    {
+      key: "status",
+      header: "Status",
+      sortable: true,
+      render: (value) => (
+        <Badge className={getStatusColor(value)}>
+          {value.replace("-", " ")}
+        </Badge>
+      )
+    },
+    {
+      key: "score",
+      header: "Score",
+      sortable: true,
+      render: (value) => value ? `${value}/100` : "-"
+    }
+  ];
+
+  const renderParticipantView = () => (
     <div className="space-y-6">
-      {/* Basic Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Hackathon Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="name">Hackathon Name</Label>
-              <Input
-                id="name"
-                value={hackathonData.name}
-                onChange={(e) =>
-                  setHackathonData((prev) => ({ ...prev, name: e.target.value }))
-                }
-              />
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-blue-100 rounded-lg">
+              <Users className="h-6 w-6 text-blue-600" />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="maxParticipants">Max Participants</Label>
-              <Input
-                id="maxParticipants"
-                type="number"
-                value={hackathonData.maxParticipants}
-                onChange={(e) =>
-                  setHackathonData((prev) => ({
-                    ...prev,
-                    maxParticipants: parseInt(e.target.value),
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="startDate">Start Date</Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={hackathonData.startDate}
-                onChange={(e) =>
-                  setHackathonData((prev) => ({
-                    ...prev,
-                    startDate: e.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="endDate">End Date</Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={hackathonData.endDate}
-                onChange={(e) =>
-                  setHackathonData((prev) => ({ ...prev, endDate: e.target.value }))
-                }
-              />
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Total Teams</p>
+              <p className="text-2xl font-bold">156</p>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={hackathonData.description}
-              onChange={(e) =>
-                setHackathonData((prev) => ({
-                  ...prev,
-                  description: e.target.value,
-                }))
-              }
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Manage Announcements */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Manage Announcements</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4">
-            <Input
-              placeholder="Announcement title"
-              value={newAnnouncement.title}
-              onChange={(e) =>
-                setNewAnnouncement((prev) => ({ ...prev, title: e.target.value }))
-              }
-            />
-            <Textarea
-              placeholder="Announcement content"
-              value={newAnnouncement.content}
-              onChange={(e) =>
-                setNewAnnouncement((prev) => ({ ...prev, content: e.target.value }))
-              }
-            />
-            <div className="flex gap-2">
-              <Select
-                value={newAnnouncement.priority}
-                onValueChange={(value: "low" | "medium" | "high") =>
-                  setNewAnnouncement((prev) => ({ ...prev, priority: value }))
-                }
-              >
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button onClick={addAnnouncement}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Announcement
-              </Button>
+        </Card>
+        
+        <Card className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-green-100 rounded-lg">
+              <FileText className="h-6 w-6 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Projects Submitted</p>
+              <p className="text-2xl font-bold">89</p>
             </div>
           </div>
-          <div className="space-y-2">
-            {hackathonData.announcements.map((announcement) => (
-              <div
-                key={announcement.id}
-                className="flex items-center justify-between p-3 border rounded"
-              >
-                <div>
-                  <h4 className="font-medium">{announcement.title}</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {announcement.content}
-                  </p>
-                </div>
-                <Button variant="ghost" size="sm">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
+        </Card>
+        
+        <Card className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-yellow-100 rounded-lg">
+              <Bell className="h-6 w-6 text-yellow-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Announcements</p>
+              <p className="text-2xl font-bold">12</p>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        </Card>
+        
+        <Card className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-red-100 rounded-lg">
+              <Clock className="h-6 w-6 text-red-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Time Left</p>
+              <p className="text-2xl font-bold">18h 42m</p>
+            </div>
+          </div>
+        </Card>
+      </div>
 
-      {/* Manage Rules */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Manage Rules</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4">
-            <Input
-              placeholder="Rule title"
-              value={newRule.title}
-              onChange={(e) =>
-                setNewRule((prev) => ({ ...prev, title: e.target.value }))
-              }
-            />
-            <Textarea
-              placeholder="Rule description"
-              value={newRule.description}
-              onChange={(e) =>
-                setNewRule((prev) => ({ ...prev, description: e.target.value }))
-              }
-            />
-            <Button onClick={addRule}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Rule
-            </Button>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Announcements */}
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Recent Announcements</h3>
+            <Bell className="h-5 w-5 text-muted-foreground" />
           </div>
-          <div className="space-y-2">
-            {hackathonData.rules.map((rule) => (
-              <div
-                key={rule.id}
-                className="flex items-center justify-between p-3 border rounded"
-              >
-                <div>
-                  <h4 className="font-medium">{rule.title}</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {rule.description}
-                  </p>
-                </div>
-                <Button variant="ghost" size="sm">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Manage Judging Criteria */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Manage Judging Criteria</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4">
-            <Input
-              placeholder="Criteria name"
-              value={newCriteria.name}
-              onChange={(e) =>
-                setNewCriteria((prev) => ({ ...prev, name: e.target.value }))
-              }
-            />
-            <Textarea
-              placeholder="Criteria description"
-              value={newCriteria.description}
-              onChange={(e) =>
-                setNewCriteria((prev) => ({ ...prev, description: e.target.value }))
-              }
-            />
-            <Input
-              type="number"
-              placeholder="Weight (%)"
-              value={newCriteria.weight || ""}
-              onChange={(e) =>
-                setNewCriteria((prev) => ({
-                  ...prev,
-                  weight: parseInt(e.target.value) || 0,
-                }))
-              }
-            />
-            <Button onClick={addCriteria}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Criteria
-            </Button>
-          </div>
-          <div className="space-y-2">
-            {hackathonData.judgingCriteria.map((criteria) => (
-              <div
-                key={criteria.id}
-                className="flex items-center justify-between p-3 border rounded"
-              >
-                <div>
-                  <h4 className="font-medium">
-                    {criteria.name} ({criteria.weight}%)
-                  </h4>
-                  <p className="text-sm text-muted-foreground">
-                    {criteria.description}
-                  </p>
-                </div>
-                <Button variant="ghost" size="sm">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Manage Judges */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Manage Judges</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Input
-              placeholder="Judge name"
-              value={newJudge.name}
-              onChange={(e) =>
-                setNewJudge((prev) => ({ ...prev, name: e.target.value }))
-              }
-            />
-            <Input
-              placeholder="Title"
-              value={newJudge.title}
-              onChange={(e) =>
-                setNewJudge((prev) => ({ ...prev, title: e.target.value }))
-              }
-            />
-            <Input
-              placeholder="Company"
-              value={newJudge.company}
-              onChange={(e) =>
-                setNewJudge((prev) => ({ ...prev, company: e.target.value }))
-              }
-            />
-            <Input
-              placeholder="Expertise (comma-separated)"
-              value={newJudge.expertise}
-              onChange={(e) =>
-                setNewJudge((prev) => ({ ...prev, expertise: e.target.value }))
-              }
-            />
-          </div>
-          <Button onClick={addJudge}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Judge
-          </Button>
-          <div className="grid gap-4 md:grid-cols-2">
-            {hackathonData.judges.map((judge) => (
-              <div
-                key={judge.id}
-                className="flex items-center justify-between p-3 border rounded"
-              >
-                <div>
-                  <h4 className="font-medium">{judge.name}</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {judge.title} at {judge.company}
-                  </p>
-                </div>
-                <Button variant="ghost" size="sm">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Manage Teams */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Teams ({hackathonData.teams.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
           <div className="space-y-4">
-            {hackathonData.teams.map((team) => (
-              <div
-                key={team.id}
-                className="flex items-center justify-between p-4 border rounded"
-              >
-                <div>
-                  <h4 className="font-medium">{team.name}</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Members: {team.members.join(", ")}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Project: {team.project}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant={
-                      team.status === "submitted" ? "default" : "secondary"
-                    }
-                  >
-                    {team.status}
+            {announcements.map((announcement) => (
+              <div key={announcement.id} className="border-l-4 border-primary pl-4 py-2">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium">{announcement.title}</h4>
+                  <Badge className={getPriorityColor(announcement.priority)}>
+                    {announcement.priority}
                   </Badge>
-                  <Button variant="ghost" size="sm">
-                    {/* Edit placeholder */}
-                    Edit
+                </div>
+                <p className="text-sm text-muted-foreground mb-2">{announcement.content}</p>
+                <p className="text-xs text-muted-foreground">{announcement.timestamp}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* Team Invitations */}
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Team Invitations</h3>
+            <TeamInviteDialog />
+          </div>
+          <div className="space-y-4">
+            {teamInvitations.map((invitation) => (
+              <div key={invitation.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <h4 className="font-medium">{invitation.teamName}</h4>
+                  <p className="text-sm text-muted-foreground">Invited by {invitation.invitedBy}</p>
+                  <p className="text-xs text-muted-foreground">{invitation.timestamp}</p>
+                </div>
+                <div className="flex space-x-2">
+                  <Button size="sm" variant="outline">
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Accept
+                  </Button>
+                  <Button size="sm" variant="outline">
+                    Decline
                   </Button>
                 </div>
               </div>
             ))}
           </div>
-        </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+
+  const renderJudgeView = () => (
+    <div className="space-y-6">
+      {/* Judge Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-purple-100 rounded-lg">
+              <Trophy className="h-6 w-6 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Projects to Review</p>
+              <p className="text-2xl font-bold">23</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-green-100 rounded-lg">
+              <Star className="h-6 w-6 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Completed Reviews</p>
+              <p className="text-2xl font-bold">15</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-blue-100 rounded-lg">
+              <Clock className="h-6 w-6 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Avg. Review Time</p>
+              <p className="text-2xl font-bold">12m</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Projects Table */}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Projects to Evaluate</h3>
+        <DataTable
+          data={projects}
+          columns={projectColumns}
+          searchPlaceholder="Search projects..."
+          itemsPerPage={5}
+        />
       </Card>
 
-      {/* Manage FAQ */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Manage FAQ</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4">
-            <Input
-              placeholder="Question"
-              value={newFAQ.question}
-              onChange={(e) =>
-                setNewFAQ((prev) => ({ ...prev, question: e.target.value }))
-              }
-            />
-            <Textarea
-              placeholder="Answer"
-              value={newFAQ.answer}
-              onChange={(e) =>
-                setNewFAQ((prev) => ({ ...prev, answer: e.target.value }))
-              }
-            />
-            <Button onClick={addFAQ}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add FAQ
-            </Button>
+      {/* Judging Criteria */}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Judging Criteria</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="p-4 border rounded-lg">
+            <h4 className="font-medium mb-2">Innovation (25%)</h4>
+            <p className="text-sm text-muted-foreground">Originality and creativity of the solution</p>
           </div>
-          <div className="space-y-2">
-            {hackathonData.faqs.map((faq) => (
-              <div
-                key={faq.id}
-                className="flex items-center justify-between p-3 border rounded"
-              >
-                <div>
-                  <h4 className="font-medium">{faq.question}</h4>
-                  <p className="text-sm text-muted-foreground">{faq.answer}</p>
-                </div>
-                <Button variant="ghost" size="sm">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
+          <div className="p-4 border rounded-lg">
+            <h4 className="font-medium mb-2">Technical Implementation (25%)</h4>
+            <p className="text-sm text-muted-foreground">Quality of code and technical execution</p>
           </div>
-        </CardContent>
+          <div className="p-4 border rounded-lg">
+            <h4 className="font-medium mb-2">Impact (25%)</h4>
+            <p className="text-sm text-muted-foreground">Potential real-world impact and usefulness</p>
+          </div>
+          <div className="p-4 border rounded-lg">
+            <h4 className="font-medium mb-2">Presentation (25%)</h4>
+            <p className="text-sm text-muted-foreground">Quality of demo and communication</p>
+          </div>
+        </div>
       </Card>
     </div>
+  );
+
+  const renderOrganizerView = () => (
+    <div className="space-y-6">
+      {/* Organizer Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-indigo-100 rounded-lg">
+              <Users className="h-6 w-6 text-indigo-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Total Participants</p>
+              <p className="text-2xl font-bold">342</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-green-100 rounded-lg">
+              <FileText className="h-6 w-6 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Submissions</p>
+              <p className="text-2xl font-bold">89</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-yellow-100 rounded-lg">
+              <Trophy className="h-6 w-6 text-yellow-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Active Judges</p>
+              <p className="text-2xl font-bold">12</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 bg-red-100 rounded-lg">
+              <BarChart3 className="h-6 w-6 text-red-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Completion Rate</p>
+              <p className="text-2xl font-bold">73%</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Event Management */}
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Event Management</h3>
+            <Settings className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div className="space-y-4">
+            <Button className="w-full justify-start" variant="outline">
+              <Bell className="h-4 w-4 mr-2" />
+              Send Announcement
+            </Button>
+            <Button className="w-full justify-start" variant="outline">
+              <Users className="h-4 w-4 mr-2" />
+              Manage Teams
+            </Button>
+            <Button className="w-full justify-start" variant="outline">
+              <Trophy className="h-4 w-4 mr-2" />
+              View Submissions
+            </Button>
+            <Button className="w-full justify-start" variant="outline">
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Export Results
+            </Button>
+          </div>
+        </Card>
+
+        {/* Recent Activity */}
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <p className="text-sm">New team "AI Innovators" registered</p>
+              <span className="text-xs text-muted-foreground ml-auto">5m ago</span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <p className="text-sm">Project "EcoTracker" submitted</p>
+              <span className="text-xs text-muted-foreground ml-auto">12m ago</span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+              <p className="text-sm">Judge completed review for "HealthBot AI"</p>
+              <span className="text-xs text-muted-foreground ml-auto">25m ago</span>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* All Projects Table */}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">All Projects</h3>
+        <DataTable
+          data={projects}
+          columns={projectColumns}
+          searchPlaceholder="Search all projects..."
+          itemsPerPage={10}
+        />
+      </Card>
+    </div>
+  );
+
+  const renderFAQ = () => (
+    <Card className="p-6">
+      <h3 className="text-lg font-semibold mb-4">Frequently Asked Questions</h3>
+      <div className="space-y-4">
+        <div className="border-b pb-4">
+          <h4 className="font-medium mb-2">How do I submit my project?</h4>
+          <p className="text-sm text-muted-foreground">
+            You can submit your project through the submission portal. Make sure to include all required files and documentation.
+          </p>
+        </div>
+        <div className="border-b pb-4">
+          <h4 className="font-medium mb-2">What are the judging criteria?</h4>
+          <p className="text-sm text-muted-foreground">
+            Projects are evaluated based on innovation, technical implementation, impact, and presentation quality.
+          </p>
+        </div>
+        <div className="border-b pb-4">
+          <h4 className="font-medium mb-2">Can I change my team after registration?</h4>
+          <p className="text-sm text-muted-foreground">
+            Team changes are allowed until 24 hours before the submission deadline. Contact organizers for assistance.
+          </p>
+        </div>
+      </div>
+    </Card>
   );
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
-        <Tabs
-          value={activeTab}
-          onValueChange={(value) =>
-            setActiveTab(value as "participant" | "admin")
-          }
-          className="w-full"
-        >
-          <TabsList className="grid w-full mb-8" style={{ gridTemplateColumns: currentRole === "organizer" ? "1fr 1fr" : "1fr" }}>
-            <TabsTrigger value="participant">Participant View</TabsTrigger>
-            {currentRole === "organizer" && (
-              <TabsTrigger value="admin">Admin Dashboard</TabsTrigger>
-            )}
-          </TabsList>
+      <div className="container mx-auto p-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold">Hackathon Dashboard</h1>
+            <p className="text-muted-foreground">Welcome to TechHack 2024</p>
+          </div>
+          
+          {/* View Switcher */}
+          <div className="flex items-center space-x-2 mt-4 sm:mt-0">
+            <Button
+              variant={currentView === "participant" ? "default" : "outline"}
+              onClick={() => setCurrentView("participant")}
+              size="sm"
+            >
+              Participant
+            </Button>
+            <Button
+              variant={currentView === "judge" ? "default" : "outline"}
+              onClick={() => setCurrentView("judge")}
+              size="sm"
+            >
+              Judge
+            </Button>
+            <Button
+              variant={currentView === "organizer" ? "default" : "outline"}
+              onClick={() => setCurrentView("organizer")}
+              size="sm"
+            >
+              Organizer
+            </Button>
+          </div>
+        </div>
 
-          <TabsContent value="participant">
-            <ParticipantView />
-          </TabsContent>
+        {/* Main Content */}
+        {currentView === "participant" && renderParticipantView()}
+        {currentView === "judge" && renderJudgeView()}
+        {currentView === "organizer" && renderOrganizerView()}
 
-          {currentRole === "organizer" && (
-            <TabsContent value="admin">
-              <AdminView />
-            </TabsContent>
-          )}
-        </Tabs>
+        {/* FAQ Section */}
+        <div className="mt-8">
+          {renderFAQ()}
+        </div>
       </div>
     </div>
   );
+}
+
+export const HackathonPlatform: React.FC = () => {
+  return <HackathonDashboard defaultView="participant" />;
 };
+
+export default HackathonPlatform;
