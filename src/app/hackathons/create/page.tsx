@@ -14,6 +14,7 @@ import { format } from "date-fns"
 import { Calendar as CalendarIcon, Save, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/components/auth/AuthProvider"
+import { supabase } from "@/lib/supabase"
 
 export default function CreateHackathonPage() {
   const router = useRouter()
