@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight } from "lucide-react";
 import { TextShimmer } from "@/components/ui/text-shimmer";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 export default function Home() {
   const router = useRouter();
+  const { user } = useAuth();
   const [prompt, setPrompt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const categories = [
@@ -27,6 +29,13 @@ export default function Home() {
 
   const handleSubmit = async () => {
     if (!prompt.trim()) return;
+    
+    // Check if user is authenticated
+    if (!user) {
+      router.push('/auth');
+      return;
+    }
+    
     router.push(`/chat?prompt=${encodeURIComponent(prompt.trim())}`);
     setPrompt("");
   };

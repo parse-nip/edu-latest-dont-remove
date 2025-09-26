@@ -77,14 +77,7 @@ export const getCurrentUser = async (): Promise<AuthUser | null> => {
   try {
     console.log('[AUTH] getCurrentUser called')
     
-    // Add timeout to prevent hanging
-    const timeoutPromise = new Promise<null>((_, reject) => {
-      setTimeout(() => reject(new Error('getCurrentUser timeout')), 30000)
-    })
-    
-    const getUserPromise = supabase.auth.getUser()
-    
-    const { data: { user } } = await Promise.race([getUserPromise, timeoutPromise])
+    const { data: { user } } = await supabase.auth.getUser()
     
     console.log('[AUTH] Raw user from supabase:', user)
     

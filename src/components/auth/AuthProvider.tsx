@@ -19,8 +19,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     console.log('[AUTH PROVIDER] Starting initialization')
     
-    let timeoutId: NodeJS.Timeout
-    
     const initAuth = async () => {
       try {
         console.log('[AUTH PROVIDER] Getting initial session...')
@@ -45,15 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Add timeout to prevent infinite loading
-    timeoutId = setTimeout(() => {
-      console.error('[AUTH PROVIDER] Auth initialization timeout, forcing loading to false')
-      setLoading(false)
-    }, 15000)
-
-    initAuth().finally(() => {
-      clearTimeout(timeoutId)
-    })
+    initAuth()
 
     // Listen for auth changes
     const {
@@ -84,7 +74,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       console.log('[AUTH PROVIDER] Cleaning up subscription')
       subscription.unsubscribe()
-      clearTimeout(timeoutId)
     }
   }, [])
 
