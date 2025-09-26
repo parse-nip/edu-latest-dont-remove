@@ -1,54 +1,55 @@
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { Database } from './database.types'
+import { NextRequest } from 'next/server'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-// Create Supabase client for server-side operations
-export function createServerClient(authToken?: string) {
-  if (authToken) {
-    return createClient<Database>(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
+export function createSupabaseServerClient() {
+  const cookieStore = cookies()
+  
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options) {
+          try {
+            cookieStore.set({ name, value, ...options })
+          } catch (error) {
+            // The `set` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+        remove(name: string, options) {
+          try {
+            cookieStore.set({ name, value: '', ...options })
+          } catch (error) {
+            // The `delete` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
         },
       },
-      auth: {
-        persistSession: false,
-      },
-    })
-  }
+    }
+  )
+}
+
+export async function getAuthenticatedUser(request?: NextRequest) {
+  const supabase = createSupabaseServerClient()
   
-  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-    },
-  })
-}
-
-// Helper to extract auth token from request
-export function getAuthToken(request: Request): string | null {
-  const authHeader = request.headers.get('Authorization')
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    return authHeader.substring(7)
-  }
-  return null
-}
-
-// Helper to get authenticated user from request
-export async function getAuthenticatedUser(request: Request) {
-  const token = getAuthToken(request)
-  if (!token) {
-    return { user: null, error: 'No auth token provided' }
+  // If request is provided, try to get token from Authorization header
+  if (request) {
+    const authHeader = request.headers.get('Authorization')
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7)
+      const { data: { user }, error } = await supabase.auth.getUser(token)
+      return { user, error }
+    }
   }
 
-  const supabase = createServerClient(token)
+  // Otherwise get user from session
   const { data: { user }, error } = await supabase.auth.getUser()
-  
-  if (error || !user) {
-    return { user: null, error: 'Invalid or expired token' }
-  }
-
-  return { user, error: null }
+  return { user, error }
 }

@@ -62,14 +62,13 @@ export default function HackathonsPage() {
       console.log('[HACKATHONS PAGE] Supabase response:', { data, error })
       
       if (error) {
-        if (error.message?.includes('hackathons')) {
-          console.log('[HACKATHONS PAGE] Table not found, initializing database...')
-          await initializeDatabase()
+        console.error('[HACKATHONS PAGE] Error fetching hackathons:', error)
+        if (error.message?.includes('hackathons') || error.code === 'PGRST205') {
+          setError('Database tables not found. Please apply the database migration in your Supabase dashboard.')
         } else {
-          throw error
+          setError('Failed to load hackathons: ' + error.message)
         }
       } else {
-        setDbInitialized(true)
         console.log('[HACKATHONS PAGE] Setting hackathons data:', data)
         setHackathons(data || [])
       }
@@ -79,32 +78,6 @@ export default function HackathonsPage() {
     } finally {
       console.log('[HACKATHONS PAGE] Setting isLoading to false')
       setIsLoading(false)
-    }
-  }
-
-  const initializeDatabase = async () => {
-    try {
-      console.log('[HACKATHONS PAGE] Initializing database...')
-      const response = await fetch('/api/init-db', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-      
-      const data = await response.json()
-      console.log('[HACKATHONS PAGE] DB init response:', data)
-      
-      if (response.ok) {
-        setDbInitialized(true)
-        // Retry fetching hackathons
-        await fetchHackathons()
-      } else {
-        setError('Failed to initialize database')
-      }
-    } catch (error) {
-      console.error('[HACKATHONS PAGE] DB initialization error:', error)
-      setError('Failed to initialize database')
     }
   }
 
@@ -215,12 +188,6 @@ export default function HackathonsPage() {
           />
         </div>
       </div>
-
-      {!dbInitialized && isLoading && (
-        <div className="text-center py-8">
-          <p className="text-gray-600">Setting up database...</p>
-        </div>
-      )}
 
       {error && (
         <Card className="mb-6 border-destructive">

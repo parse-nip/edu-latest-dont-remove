@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createSupabaseServerClient } from '@/lib/supabase-server';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0');
     const search = searchParams.get('search');
 
-    const supabase = createServerClient();
+    const supabase = createSupabaseServerClient();
     let query = supabase
       .from('hackathons')
       .select('*')
@@ -40,30 +40,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     console.log('[API] POST /api/hackathons called')
+    
+    const supabase = createSupabaseServerClient();
+    
     // Get user from session
-    const authHeader = request.headers.get('authorization');
-    console.log('[API] Auth header present:', !!authHeader)
-    
-    if (!authHeader?.startsWith('Bearer ')) {
-      console.log('[API] No valid auth header')
-      return NextResponse.json({ 
-        error: "Authentication required",
-        code: "UNAUTHENTICATED" 
-      }, { status: 401 });
-    }
-
-    const token = authHeader.substring(7);
-    console.log('[API] Extracted token length:', token.length)
-    
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     console.log('[API] getUser result:', { user: user ? 'present' : 'null', authError })
-    
+
     if (authError || !user) {
       console.log('[API] Auth failed:', authError)
       return NextResponse.json({ 
-        error: "Authentication required",
-        code: "UNAUTHENTICATED" 
+        error: "Authentication required"
       }, { status: 401 });
     }
 

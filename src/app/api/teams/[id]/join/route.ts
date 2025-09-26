@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient, getAuthenticatedUser } from '@/lib/supabase-server';
+import { createSupabaseServerClient, getAuthenticatedUser } from '@/lib/supabase-server';
 
 export async function POST(
   request: NextRequest,
@@ -37,8 +37,7 @@ export async function POST(
       }, { status: 400 });
     }
 
-    // 1. Validate team exists and get hackathon info
-    const supabase = createServerClient();
+    const supabase = createSupabaseServerClient();
     
     // 1. Validate team exists and get hackathon info
     const { data: teamWithHackathon, error: teamError } = await supabase
@@ -117,6 +116,7 @@ export async function POST(
     }
 
     // 5. Add participant to team if all validations pass
+    const { data, error } = await supabase
       .from('team_members')
       .insert({
         team_id: teamId,
