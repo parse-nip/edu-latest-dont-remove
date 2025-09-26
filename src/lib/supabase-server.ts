@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { NextRequest } from 'next/server'
 import type { ReadonlyRequestCookies } from 'next/dist/server/web/spec-extension/adapters/request-cookies'
 
@@ -35,32 +36,36 @@ export function createSupabaseServerClient(cookieStore: ReadonlyRequestCookies) 
 }
 
 export async function getAuthenticatedUser(cookieStore: ReadonlyRequestCookies, request?: NextRequest) {
-  // Always create the supabase client using the cookieStore
-  const supabase = createSupabaseServerClient(cookieStore)
-  
-  // If request is provided, try to get token from Authorization header
+  // First, try bearer token authentication if present
   if (request) {
     const authHeader = request.headers.get('Authorization')
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7)
       
-      // Set the session using the token
-      const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-        access_token: token,
-        refresh_token: ''
-      })
-      
-      if (sessionError) {
-        return { user: null, error: sessionError }
+      try {
+        // Create a temporary client that doesn't interfere with cookies
+        const tempSupabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
+        
+        // Set the session with the bearer token
+        const { data: sessionData, error: sessionError } = await tempSupabase.auth.setSession({
+          access_token: token,
+          refresh_token: ''
+        })
+        
+        if (!sessionError && sessionData.user) {
+          return { user: sessionData.user, error: null }
+        }
+      } catch (error) {
+        // Bearer token authentication failed, fall back to cookie-based auth
       }
-      
-      // Get the user from the session
-      const { data: { user }, error } = await supabase.auth.getUser()
-      return { user, error }
     }
   }
 
-  // Fallback to getting user from existing session
+  // Fall back to cookie-based session authentication
+  const supabase = createSupabaseServerClient(cookieStore)
   const { data: { user }, error } = await supabase.auth.getUser()
-  return { user, error: error || (user ? null : new Error('No authentication token provided')) }
+  return { user, error: error || (user ? null : new Error('No authentication found')) }
 }
