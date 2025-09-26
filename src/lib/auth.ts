@@ -79,7 +79,7 @@ export const getCurrentUser = async (): Promise<AuthUser | null> => {
     
     // Add timeout to prevent hanging
     const timeoutPromise = new Promise<null>((_, reject) => {
-      setTimeout(() => reject(new Error('getCurrentUser timeout')), 10000)
+      setTimeout(() => reject(new Error('getCurrentUser timeout')), 30000)
     })
     
     const getUserPromise = supabase.auth.getUser()
