@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { hackathons } from '@/db/schema';
-import { eq, like, desc } from 'drizzle-orm';
+import { supabase } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,37 +7,27 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 100);
     const offset = parseInt(searchParams.get('offset') || '0');
     const search = searchParams.get('search');
-    const id = searchParams.get('id');
 
-    if (id) {
-      if (!id || isNaN(parseInt(id))) {
-        return NextResponse.json({ 
-          error: "Valid ID is required",
-          code: "INVALID_ID" 
-        }, { status: 400 });
-      }
-
-      const hackathon = await db.select()
-        .from(hackathons)
-        .where(eq(hackathons.id, parseInt(id)))
-        .limit(1);
-
-      if (hackathon.length === 0) {
-        return NextResponse.json({ error: 'Hackathon not found' }, { status: 404 });
-      }
-
-      return NextResponse.json(hackathon[0]);
-    }
-
-    let query = db.select().from(hackathons).orderBy(desc(hackathons.createdAt));
+    let query = supabase
+      .from('hackathons')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (search) {
-      query = query.where(like(hackathons.name, `%${search}%`));
+      query = query.ilike('name', `%${search}%`);
     }
 
-    const results = await query.limit(limit).offset(offset);
+    const { data, error } = await query;
 
-    return NextResponse.json(results);
+    if (error) {
+      console.error('GET error:', error);
+      return NextResponse.json({ 
+        error: error.message 
+      }, { status: 500 });
+    }
+
+    return NextResponse.json(data);
   } catch (error) {
     console.error('GET error:', error);
     return NextResponse.json({ 
@@ -51,7 +39,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const requestBody = await request.json();
-    const { name, description, startAt, endAt, status, maxTeamSize } = requestBody;
+    const { name, description, start_at, end_at, status, max_team_size } = requestBody;
+
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json({ 
+        error: "Authentication required",
+        code: "UNAUTHENTICATED" 
+      }, { status: 401 });
+    }
 
     // Validate required fields
     if (!name) {
@@ -61,194 +59,56 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    if (!startAt) {
+    if (!start_at) {
       return NextResponse.json({ 
         error: "Start date is required",
         code: "MISSING_REQUIRED_FIELD" 
       }, { status: 400 });
     }
 
-    if (!endAt) {
+    if (!end_at) {
       return NextResponse.json({ 
         error: "End date is required",
         code: "MISSING_REQUIRED_FIELD" 
       }, { status: 400 });
     }
 
-    // Validate timestamp format (should be integers)
-    if (isNaN(parseInt(startAt))) {
-      return NextResponse.json({ 
-        error: "Start date must be a valid timestamp",
-        code: "INVALID_TIMESTAMP" 
-      }, { status: 400 });
-    }
-
-    if (isNaN(parseInt(endAt))) {
-      return NextResponse.json({ 
-        error: "End date must be a valid timestamp",
-        code: "INVALID_TIMESTAMP" 
-      }, { status: 400 });
-    }
-
     // Validate date logic
-    if (parseInt(startAt) >= parseInt(endAt)) {
+    const startDate = new Date(start_at);
+    const endDate = new Date(end_at);
+
+    if (startDate >= endDate) {
       return NextResponse.json({ 
         error: "End date must be after start date",
         code: "INVALID_DATE_RANGE" 
       }, { status: 400 });
     }
 
-    // Sanitize inputs
-    const sanitizedName = name.trim();
-    const sanitizedDescription = description?.trim() || null;
+    // Create hackathon
+    const { data, error } = await supabase
+      .from('hackathons')
+      .insert({
+        name: name.trim(),
+        description: description?.trim() || null,
+        start_at: start_at,
+        end_at: end_at,
+        status: status || 'upcoming',
+        max_team_size: max_team_size || 4,
+        created_by: user.id
+      })
+      .select()
+      .single();
 
-    // Prepare data with defaults
-    const hackathonData = {
-      name: sanitizedName,
-      description: sanitizedDescription,
-      startAt: parseInt(startAt),
-      endAt: parseInt(endAt),
-      status: status || 'upcoming',
-      maxTeamSize: maxTeamSize || 4,
-      createdAt: Date.now()
-    };
+    if (error) {
+      console.error('POST error:', error);
+      return NextResponse.json({ 
+        error: error.message 
+      }, { status: 500 });
+    }
 
-    const newHackathon = await db.insert(hackathons)
-      .values(hackathonData)
-      .returning();
-
-    return NextResponse.json(newHackathon[0], { status: 201 });
+    return NextResponse.json(data, { status: 201 });
   } catch (error) {
     console.error('POST error:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error: ' + error 
-    }, { status: 500 });
-  }
-}
-
-export async function PUT(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-
-    if (!id || isNaN(parseInt(id))) {
-      return NextResponse.json({ 
-        error: "Valid ID is required",
-        code: "INVALID_ID" 
-      }, { status: 400 });
-    }
-
-    const requestBody = await request.json();
-    const { name, description, startAt, endAt, status, maxTeamSize } = requestBody;
-
-    // Check if record exists
-    const existingHackathon = await db.select()
-      .from(hackathons)
-      .where(eq(hackathons.id, parseInt(id)))
-      .limit(1);
-
-    if (existingHackathon.length === 0) {
-      return NextResponse.json({ error: 'Hackathon not found' }, { status: 404 });
-    }
-
-    // Validate timestamps if provided
-    if (startAt !== undefined && isNaN(parseInt(startAt))) {
-      return NextResponse.json({ 
-        error: "Start date must be a valid timestamp",
-        code: "INVALID_TIMESTAMP" 
-      }, { status: 400 });
-    }
-
-    if (endAt !== undefined && isNaN(parseInt(endAt))) {
-      return NextResponse.json({ 
-        error: "End date must be a valid timestamp",
-        code: "INVALID_TIMESTAMP" 
-      }, { status: 400 });
-    }
-
-    // Validate date logic if both dates are provided
-    const newStartAt = startAt !== undefined ? parseInt(startAt) : existingHackathon[0].startAt;
-    const newEndAt = endAt !== undefined ? parseInt(endAt) : existingHackathon[0].endAt;
-
-    if (newStartAt >= newEndAt) {
-      return NextResponse.json({ 
-        error: "End date must be after start date",
-        code: "INVALID_DATE_RANGE" 
-      }, { status: 400 });
-    }
-
-    // Prepare update data
-    const updateData: any = {};
-
-    if (name !== undefined) {
-      updateData.name = name.trim();
-    }
-    if (description !== undefined) {
-      updateData.description = description?.trim() || null;
-    }
-    if (startAt !== undefined) {
-      updateData.startAt = parseInt(startAt);
-    }
-    if (endAt !== undefined) {
-      updateData.endAt = parseInt(endAt);
-    }
-    if (status !== undefined) {
-      updateData.status = status;
-    }
-    if (maxTeamSize !== undefined) {
-      updateData.maxTeamSize = maxTeamSize;
-    }
-
-    const updatedHackathon = await db.update(hackathons)
-      .set(updateData)
-      .where(eq(hackathons.id, parseInt(id)))
-      .returning();
-
-    if (updatedHackathon.length === 0) {
-      return NextResponse.json({ error: 'Hackathon not found' }, { status: 404 });
-    }
-
-    return NextResponse.json(updatedHackathon[0]);
-  } catch (error) {
-    console.error('PUT error:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error: ' + error 
-    }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-
-    if (!id || isNaN(parseInt(id))) {
-      return NextResponse.json({ 
-        error: "Valid ID is required",
-        code: "INVALID_ID" 
-      }, { status: 400 });
-    }
-
-    // Check if record exists before deleting
-    const existingHackathon = await db.select()
-      .from(hackathons)
-      .where(eq(hackathons.id, parseInt(id)))
-      .limit(1);
-
-    if (existingHackathon.length === 0) {
-      return NextResponse.json({ error: 'Hackathon not found' }, { status: 404 });
-    }
-
-    const deletedHackathon = await db.delete(hackathons)
-      .where(eq(hackathons.id, parseInt(id)))
-      .returning();
-
-    return NextResponse.json({
-      message: 'Hackathon deleted successfully',
-      deletedRecord: deletedHackathon[0]
-    });
-  } catch (error) {
-    console.error('DELETE error:', error);
     return NextResponse.json({ 
       error: 'Internal server error: ' + error 
     }, { status: 500 });

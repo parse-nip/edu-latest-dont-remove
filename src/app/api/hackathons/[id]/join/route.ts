@@ -1,24 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/db';
-import { hackathons, hackathonParticipants } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { supabase } from '@/lib/supabase';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const hackathonId = parseInt(params.id);
+    const hackathonId = params.id;
     
-    if (!hackathonId || isNaN(hackathonId)) {
+    if (!hackathonId) {
       return NextResponse.json({
-        error: "Valid hackathon ID is required",
+        error: "Hackathon ID is required",
         code: "INVALID_HACKATHON_ID"
       }, { status: 400 });
     }
 
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json({
+        error: "Authentication required",
+        code: "UNAUTHENTICATED"
+      }, { status: 401 });
+    }
+
     const requestBody = await request.json();
-    const { display_name, role } = requestBody;
+    const { display_name, role, join_code } = requestBody;
 
     // Validate required fields
     if (!display_name) {
@@ -29,23 +37,24 @@ export async function POST(
     }
 
     // Validate role if provided
-    const validRoles = ['participant', 'judge', 'host'];
+    const validRoles = ['participant', 'judge', 'organizer'];
     const participantRole = role || 'participant';
     
     if (!validRoles.includes(participantRole)) {
       return NextResponse.json({
-        error: "Role must be one of: participant, judge, host",
+        error: "Role must be one of: participant, judge, organizer",
         code: "INVALID_ROLE"
       }, { status: 400 });
     }
 
     // Validate hackathon exists
-    const hackathon = await db.select()
-      .from(hackathons)
-      .where(eq(hackathons.id, hackathonId))
-      .limit(1);
+    const { data: hackathon, error: hackathonError } = await supabase
+      .from('hackathons')
+      .select('*')
+      .eq('id', hackathonId)
+      .single();
 
-    if (hackathon.length === 0) {
+    if (hackathonError || !hackathon) {
       return NextResponse.json({
         error: "Hackathon not found",
         code: "HACKATHON_NOT_FOUND"
@@ -53,16 +62,34 @@ export async function POST(
     }
 
     // Create participant
-    const newParticipant = await db.insert(hackathonParticipants)
-      .values({
-        hackathonId,
-        displayName: display_name.trim(),
+    const { data, error } = await supabase
+      .from('hackathon_participants')
+      .insert({
+        hackathon_id: hackathonId,
+        user_id: user.id,
+        display_name: display_name.trim(),
         role: participantRole,
-        createdAt: Math.floor(Date.now() / 1000)
+        join_code: join_code || null
       })
-      .returning();
+      .select()
+      .single();
 
-    return NextResponse.json(newParticipant[0], { status: 201 });
+    if (error) {
+      // Handle duplicate entry
+      if (error.code === '23505') {
+        return NextResponse.json({
+          error: "Already joined this hackathon",
+          code: "ALREADY_JOINED"
+        }, { status: 400 });
+      }
+      
+      console.error('POST error:', error);
+      return NextResponse.json({
+        error: error.message
+      }, { status: 500 });
+    }
+
+    return NextResponse.json(data, { status: 201 });
 
   } catch (error) {
     console.error('POST error:', error);
