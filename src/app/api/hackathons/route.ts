@@ -4,18 +4,27 @@ import { cookies } from 'next/headers';
 
 export async function GET(request: NextRequest) {
   try {
-    // IMPORTANT: await cookies() so you get the concrete RequestCookies value
     const cookieStore = await cookies();
     const { searchParams } = new URL(request.url);
     const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 100);
     const offset = parseInt(searchParams.get('offset') || '0');
     const search = searchParams.get('search');
 
-    // IMPORTANT: createSupabaseServerClient is async => await it
-    const supabase = await createSupabaseServerClient(cookieStore);
+    // Get authenticated user and supabase client
+    const { user, error: authError, supabase } = await getAuthenticatedUser(cookieStore, request);
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    // Use the authenticated supabase client or fallback to server client
+    const authenticatedSupabase = supabase || createSupabaseServerClient(cookieStore);
 
     // build query
-    let query = supabase
+    let query = authenticatedSupabase
       .from('hackathons')
       .select('*')
       .order('created_at', { ascending: false })
