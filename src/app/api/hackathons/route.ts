@@ -4,13 +4,17 @@ import { cookies } from 'next/headers';
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = cookies();
+    // IMPORTANT: await cookies() so you get the concrete RequestCookies value
+    const cookieStore = await cookies();
     const { searchParams } = new URL(request.url);
     const limit = Math.min(parseInt(searchParams.get('limit') || '10'), 100);
     const offset = parseInt(searchParams.get('offset') || '0');
     const search = searchParams.get('search');
 
-    const supabase = createSupabaseServerClient(cookieStore);
+    // IMPORTANT: createSupabaseServerClient is async => await it
+    const supabase = await createSupabaseServerClient(cookieStore);
+
+    // build query
     let query = supabase
       .from('hackathons')
       .select('*')
@@ -21,66 +25,73 @@ export async function GET(request: NextRequest) {
       query = query.ilike('name', `%${search}%`);
     }
 
+    // execute
     const { data, error } = await query;
 
     if (error) {
       console.error('GET error:', error);
-      return NextResponse.json({ 
-        error: error.message 
-      }, { status: 500 });
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json(data);
   } catch (error) {
     console.error('GET error:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error: ' + error 
-    }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error: ' + String(error) },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('[API] POST /api/hackathons called')
-    
-    const cookieStore = cookies();
+    console.log('[API] POST /api/hackathons called');
 
-    // Get user from session
+    // await cookies()
+    const cookieStore = await cookies();
+
+    // Get user from session (getAuthenticatedUser returns { user, error })
     const { user, error: authError } = await getAuthenticatedUser(cookieStore, request);
-    console.log('[API] getUser result:', { user: user ? 'present' : 'null', authError })
+    console.log('[API] getUser result:', { user: user ? 'present' : 'null', authError });
 
     if (authError || !user) {
-      console.log('[API] Auth failed:', authError)
-      return NextResponse.json({ 
-        error: "Authentication required"
-      }, { status: 401 });
+      console.log('[API] Auth failed:', authError);
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
     }
 
-    const supabase = createSupabaseServerClient(cookieStore);
+    // await the client factory
+    const supabase = await createSupabaseServerClient(cookieStore);
+
     const requestBody = await request.json();
-    console.log('[API] Request body:', requestBody)
+    console.log('[API] Request body:', requestBody);
     const { name, description, start_at, end_at, status, max_team_size } = requestBody;
 
     // Validate required fields
     if (!name) {
-      return NextResponse.json({ 
-        error: "Name is required",
-        code: "MISSING_REQUIRED_FIELD" 
-      }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Name is required', code: 'MISSING_REQUIRED_FIELD' },
+        { status: 400 }
+      );
     }
 
     if (!start_at) {
-      return NextResponse.json({ 
-        error: "Start date is required",
-        code: "MISSING_REQUIRED_FIELD" 
-      }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Start date is required', code: 'MISSING_REQUIRED_FIELD' },
+        { status: 400 }
+      );
     }
 
     if (!end_at) {
-      return NextResponse.json({ 
-        error: "End date is required",
-        code: "MISSING_REQUIRED_FIELD" 
-      }, { status: 400 });
+      return NextResponse.json(
+        { error: 'End date is required', code: 'MISSING_REQUIRED_FIELD' },
+        { status: 400 }
+      );
     }
 
     // Validate date logic
@@ -88,13 +99,13 @@ export async function POST(request: NextRequest) {
     const endDate = new Date(end_at);
 
     if (startDate >= endDate) {
-      return NextResponse.json({ 
-        error: "End date must be after start date",
-        code: "INVALID_DATE_RANGE" 
-      }, { status: 400 });
+      return NextResponse.json(
+        { error: 'End date must be after start date', code: 'INVALID_DATE_RANGE' },
+        { status: 400 }
+      );
     }
 
-    // Create hackathon
+    // Insert the hackathon
     const { data, error } = await supabase
       .from('hackathons')
       .insert({
@@ -111,16 +122,15 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('POST error:', error);
-      return NextResponse.json({ 
-        error: error.message 
-      }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
     console.error('POST error:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error: ' + error 
-    }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error: ' + String(error) },
+      { status: 500 }
+    );
   }
 }
