@@ -10,22 +10,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { signUp, signIn, type UserRole } from "@/lib/auth"
 import { supabase } from "@/lib/auth"
-import { CircleAlert as AlertCircle, User, UserCheck, Crown } from "lucide-react"
-
-export function AuthForm() {
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  
-  // Sign up form state
-  const [signUpForm, setSignUpForm] = useState({
-    email: "",
-    password: "",
-    displayName: "",
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          display_name: displayName,
+          role,
+          join_code: joinCode,
+        }
     role: "participant" as UserRole,
-    joinCode: ""
-  })
-  
   // Sign in form state
   const [signInForm, setSignInForm] = useState({
     email: "",
@@ -198,36 +193,33 @@ export function AuthForm() {
                     id="join-code"
                     placeholder="Enter code from your organizer"
                     value={signUpForm.joinCode}
-                    onChange={(e) => setSignUpForm(prev => ({ ...prev, joinCode: e.target.value }))}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Leave blank to browse public hackathons
-                  </p>
-                </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Creating account..." : "Create Account"}
-                </Button>
-              </form>
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    })
+    
+    return { data, error }
+  } catch (err: any) {
+    return { data: null, error: { message: err.message || 'Authentication service unavailable' } }
+  }
             </TabsContent>
           </Tabs>
 
-          {error && (
-            <div className="flex items-center gap-2 p-3 mt-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
-              <AlertCircle className="h-4 w-4" />
-              {error}
-            </div>
-          )}
-          
-          {!supabase && (
-            <div className="p-4 mt-4 text-sm bg-yellow-50 border border-yellow-200 rounded-md">
-              <p className="font-medium text-yellow-800 mb-2">Supabase Configuration Required</p>
-              <p className="text-yellow-700 text-xs">
-                Please click "Connect to Supabase" in the top right to set up authentication.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  )
+  try {
+    const { error } = await supabase.auth.signOut()
+    return { error }
+  } catch (err: any) {
+    return { error: { message: err.message || 'Sign out failed' } }
+  }
+      id: user.id,
+      email: user.email!,
+      role: user.user_metadata.role || 'participant',
+      displayName: user.user_metadata.display_name || user.email!,
+      joinCode: user.user_metadata.join_code
+    }
+  } catch (err) {
+    console.error('Error getting current user:', err)
+    return null
+  }
 }

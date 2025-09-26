@@ -17,12 +17,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check if Supabase is configured
-    if (!supabase) {
-      setLoading(false)
-      return
-    }
-
     // Get initial session
     getCurrentUser().then(setUser).finally(() => setLoading(false))
 
@@ -43,7 +37,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const handleSignOut = async () => {
-    if (!supabase) return
     await supabase.auth.signOut()
     setUser(null)
   }
