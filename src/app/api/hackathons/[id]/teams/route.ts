@@ -7,7 +7,7 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const { id: hackathonId } = await context.params;
 
     // Validate hackathon ID
@@ -60,7 +60,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const { id: hackathonId } = await context.params;
 
     // Validate hackathon ID
@@ -72,7 +72,7 @@ export async function POST(
     }
 
     // Get user from session
-    const { user, error: authError } = await getAuthenticatedUser(request);
+    const { user, error: authError } = await getAuthenticatedUser(cookieStore, request);
     
     if (authError || !user) {
       return NextResponse.json({

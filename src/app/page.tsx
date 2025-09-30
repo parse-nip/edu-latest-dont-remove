@@ -28,7 +28,9 @@ export default function Home() {
   };
 
   const handleSubmit = async () => {
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || isSubmitting) return;
+    
+    setIsSubmitting(true);
     
     // Check if user is authenticated
     if (!user) {
@@ -36,7 +38,8 @@ export default function Home() {
       return;
     }
     
-    router.push(`/chat?prompt=${encodeURIComponent(prompt.trim())}`);
+    // Redirect to universal-builder with the prompt
+    router.push(`/universal-builder?prompt=${encodeURIComponent(prompt.trim())}`);
     setPrompt("");
   };
 
@@ -45,35 +48,35 @@ export default function Home() {
       <div className="max-w-2xl w-full space-y-6">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-foreground mb-2">
-            Ready to build?
+            Start Building Your App
           </h1>
-          <p className="text-muted-foreground">
-            Describe your app idea in the chat below to get started.
+          <p className="text-muted-foreground text-lg">
+            Describe your app idea below and we'll create it for you
           </p>
         </div>
 
         <div className="relative">
-          <Textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Enter your first prompt, e.g., 'Build a fitness tracker app...'"
-            className="min-h-[120px] pr-12 resize-none"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit();
-              }
-            }}
-          />
-          <Button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!prompt.trim()}
-            size="sm"
-            className="absolute bottom-3 right-3 h-8 w-8 rounded-full p-0 disabled:opacity-50"
-          >
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+           <Textarea
+             value={prompt}
+             onChange={(e) => setPrompt(e.target.value)}
+             placeholder="Describe your app idea, e.g., 'Build a fitness tracker app with workout logging and progress charts...'"
+             className="min-h-[140px] pr-16 resize-none text-base"
+             onKeyDown={(e) => {
+               if (e.key === "Enter" && !e.shiftKey) {
+                 e.preventDefault();
+                 handleSubmit();
+               }
+             }}
+           />
+           <Button
+             type="button"
+             onClick={handleSubmit}
+             disabled={!prompt.trim() || isSubmitting}
+             size="sm"
+             className="absolute bottom-3 right-3 h-10 w-10 rounded-full p-0 disabled:opacity-50"
+           >
+             <ArrowRight className="h-5 w-5" />
+           </Button>
         </div>
 
         <div className="text-center">
@@ -93,16 +96,6 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="w-full mt-8">
-          <h2 className="text-2xl font-bold text-foreground mb-4 text-center">Your Apps</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Empty state for now; replace with dynamic app cards later */}
-            <div className="col-span-full text-center py-12 border-2 border-dashed border-border rounded-lg">
-              <p className="text-muted-foreground">No apps created yet.</p>
-              <p className="text-sm text-muted-foreground mt-1">Start a chat above to build your first app!</p>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -1,9 +1,10 @@
 import { ChatLayout } from "@/components/chat/ChatLayout";
 
 interface Props {
-  searchParams: { prompt?: string };
+  searchParams: Promise<{ prompt?: string }>;
 }
 
-export default function ChatPage({ searchParams }: Props) {
-  return <ChatLayout initialPrompt={searchParams.prompt} />;
+export default async function ChatPage({ searchParams }: Props) {
+  const params = await searchParams;
+  return <ChatLayout initialPrompt={params.prompt} />;
 }

@@ -5,10 +5,37 @@ import { ChatMessages } from "./ChatMessages";
 import { ChatInput } from "./ChatInput";
 import { useChat } from "@/hooks/useChat";
 import type { ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Home } from "lucide-react";
+import { Upload, ExternalLink } from "lucide-react";
 import { TypewriterEffectSmooth } from "@/components/ui/typewriter-effect";
+import { ProjectImporter } from "@/components/project/ProjectImporter";
+import dynamic from "next/dynamic";
+import { ErrorBubble } from "@/components/ui/ErrorBubble";
+
+// Dynamically import components to avoid SSR issues
+const EmbeddedWorkbench = dynamic(() => import("./EmbeddedWorkbench").then(mod => ({ default: mod.EmbeddedWorkbench })), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center p-4 text-muted-foreground text-center">
+      <div>
+        <h3 className="text-lg font-medium mb-2">Loading Workbench...</h3>
+        <p>Initializing development environment...</p>
+      </div>
+    </div>
+  )
+});
+
+const SimplePreview = dynamic(() => import("./SimplePreview").then(mod => ({ default: mod.SimplePreview })), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full flex items-center justify-center p-4 text-muted-foreground text-center">
+      <div>
+        <h3 className="text-lg font-medium mb-2">Loading Preview...</h3>
+        <p>Initializing preview environment...</p>
+      </div>
+    </div>
+  )
+});
 
 interface ChatLayoutProps {
   initialPrompt?: string;
@@ -16,8 +43,20 @@ interface ChatLayoutProps {
 }
 
 export function ChatLayout({ initialPrompt, children }: { initialPrompt?: string; children?: ReactNode }) {
-  const { messages, addMessage, isLoading, isInitialLoading } = useChat(initialPrompt);
-  const router = useRouter();
+  const [selectedModel, setSelectedModel] = React.useState<string>('x-ai/grok-4-fast:free'); // Default to Grok 4 Fast Free
+  const { messages, addMessage, isLoading, isInitialLoading, previewUrl, lastError, forceCompleteLoading } = useChat(initialPrompt, selectedModel);
+  const [showImporter, setShowImporter] = React.useState(false);
+
+  // Initialize OpenRouter on component mount
+  React.useEffect(() => {
+    const apiKey = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+    if (apiKey) {
+      import('@/lib/openrouter').then(({ initializeOpenRouter }) => {
+        initializeOpenRouter(apiKey);
+        console.log('🔑 OpenRouter initialized with API key');
+      });
+    }
+  }, []);
 
   const [tab, setTab] = React.useState<"preview" | "code">("preview");
   // Resizable splitter state
@@ -44,6 +83,16 @@ export function ChatLayout({ initialPrompt, children }: { initialPrompt?: string
     };
   }, [dragging]);
 
+  // Get the latest AI response to show generated files
+  const latestAIResponse = messages
+    .filter(msg => msg.role === 'assistant' && typeof msg.content !== 'string')
+    .pop()?.content as any;
+
+  // Debug preview URL
+  React.useEffect(() => {
+    console.log('🔍 ChatLayout - previewUrl changed:', previewUrl);
+  }, [previewUrl]);
+
   return (
     <div ref={containerRef} className="flex h-full bg-background overflow-hidden">
       {/* Left: Chat (messages + widgets + input) */}
@@ -52,14 +101,28 @@ export function ChatLayout({ initialPrompt, children }: { initialPrompt?: string
         style={{ width: `${leftPct}%` }}
       >
         <div className="flex-1 min-h-0 flex flex-col">
-          <ChatMessages messages={messages} isLoading={isLoading} />
-          <div className="flex-none">
-            <ChatInput
-              onSend={(content) =>
-                addMessage({ role: "user", content })
-              }
-              disabled={isLoading || isInitialLoading}
-            />
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+            <span className="text-sm font-medium">Chat</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowImporter(true)}
+              className="flex items-center gap-2"
+            >
+              <Upload className="h-4 w-4" />
+              Import
+            </Button>
+          </div>
+          <div className="flex-1 min-h-0 flex flex-col">
+            <ChatMessages messages={messages} isLoading={isLoading} />
+            <div className="flex-none">
+              <ChatInput
+                onSend={(content) =>
+                  addMessage({ role: "user", content })
+                }
+                disabled={isLoading || isInitialLoading}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -96,9 +159,12 @@ export function ChatLayout({ initialPrompt, children }: { initialPrompt?: string
             >
               Code
             </button>
+            <div className="ml-auto flex items-center gap-2">
+              {/* Import button moved to chat window */}
+            </div>
           </div>
 
-          <div className="flex-1 overflow-auto p-6">
+          <div className="flex-1 overflow-hidden">
             {tab === "preview" ? (
               isInitialLoading ? (
                 <div className="h-full flex flex-col items-center justify-center p-4 space-y-8 text-foreground">
@@ -110,27 +176,79 @@ export function ChatLayout({ initialPrompt, children }: { initialPrompt?: string
                     ]} 
                     className="text-2xl font-medium" 
                   />
+                  <div className="text-sm text-muted-foreground">
+                    This may take a moment...
+                  </div>
+                  <button 
+                    onClick={forceCompleteLoading}
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                  >
+                    Force Complete (Debug)
+                  </button>
                 </div>
+              ) : latestAIResponse?.generatedFiles ? (
+                <SimplePreview 
+                  files={latestAIResponse.generatedFiles.reduce((acc: any, file: any) => {
+                    acc[file.path] = { type: 'file', content: file.content };
+                    return acc;
+                  }, {})}
+                  isStreaming={isLoading}
+                  previewUrl={previewUrl}
+                />
               ) : (
                 <div className="h-full flex items-center justify-center p-4 text-muted-foreground text-center">
-                  Preview of your app will appear here. Connect to AI to generate content.
+                  <div>
+                    <h3 className="text-lg font-medium mb-2">No app yet</h3>
+                    <p>Send a message to generate an app.</p>
+                    {lastError && (
+                      <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                        <p className="text-sm text-red-600">{lastError}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )
             ) : (
-              <pre className="text-sm font-mono bg-muted/50 border border-border rounded-md p-4 overflow-auto h-full">{`// Example code view
-export function ExampleComponent() {
-  return (
-    <div className="p-4">
-      <h1 className="text-lg font-semibold">Hello from Code View</h1>
-      <p className="text-sm text-muted-foreground">Swap tabs to see the preview again.</p>
-    </div>
-  );
-}
-`}</pre>
+              <div className="h-full">
+                {latestAIResponse?.generatedFiles ? (
+                  <EmbeddedWorkbench 
+                    files={latestAIResponse.generatedFiles.reduce((acc: any, file: any) => {
+                      acc[file.path] = { type: 'file', content: file.content };
+                      return acc;
+                    }, {})}
+                    selectedFile={latestAIResponse.generatedFiles[0]?.path}
+                    isStreaming={isLoading}
+                  />
+                ) : (
+                  <div className="h-full flex items-center justify-center p-4 text-muted-foreground text-center">
+                    <div>
+                      <h3 className="text-lg font-medium mb-2">No code yet</h3>
+                      <p>Send a message to generate code for your app.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
       </div>
+      
+      {/* Project Import Modal */}
+      {showImporter && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <ProjectImporter 
+            onImportComplete={() => setShowImporter(false)}
+            onCancel={() => setShowImporter(false)}
+          />
+        </div>
+      )}
+
+      {lastError && (
+        <ErrorBubble 
+          message={lastError}
+          onFixWithAI={(prompt) => addMessage({ role: 'user', content: prompt })}
+        />
+      )}
     </div>
   );
 }

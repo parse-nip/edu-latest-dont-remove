@@ -50,8 +50,9 @@ export function AuthForm() {
       console.error('[AUTH FORM] signUp error:', error)
       setError(String(error))
     } else {
-      console.log('[AUTH FORM] signUp successful, redirecting...')
-      router.push("/hackathons")
+      console.log('[AUTH FORM] signUp successful, waiting for auth state to update...')
+      // Don't redirect immediately - let the AuthProvider handle the redirect
+      // The onAuthStateChange will trigger and update the user state
     }
     
     setIsLoading(false)
@@ -71,8 +72,9 @@ export function AuthForm() {
       console.error('[AUTH FORM] signIn error:', error)
       setError(String(error))
     } else {
-      console.log('[AUTH FORM] signIn successful, redirecting...')
-      router.push("/hackathons")
+      console.log('[AUTH FORM] signIn successful, waiting for auth state to update...')
+      // Don't redirect immediately - let the AuthProvider handle the redirect
+      // The onAuthStateChange will trigger and update the user state
     }
     
     setIsLoading(false)

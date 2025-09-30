@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 
 export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const { id } = await context.params;
 
     // Validate hackathon ID

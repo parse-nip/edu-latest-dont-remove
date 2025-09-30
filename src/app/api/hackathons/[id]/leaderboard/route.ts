@@ -7,7 +7,7 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const { id: hackathonId } = await context.params;
     
     if (!hackathonId) {

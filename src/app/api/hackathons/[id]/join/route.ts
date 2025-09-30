@@ -7,7 +7,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const { id: hackathonId } = await context.params;
     
     if (!hackathonId) {

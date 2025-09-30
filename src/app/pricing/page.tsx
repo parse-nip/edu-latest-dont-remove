@@ -174,7 +174,7 @@ const hackathonPlans: HackathonPlan[] = [
   }
 ]
 
-export function AIPoweredPricing({ className }: AIPoweredPricingProps) {
+function AIPoweredPricing({ className }: AIPoweredPricingProps) {
   const [isYearly, setIsYearly] = useState(false)
   const [activeTab, setActiveTab] = useState("individual")
 

@@ -5,6 +5,7 @@ import ErrorReporter from "@/components/ErrorReporter";
 import Script from "next/script";
 import Navbar from "@/components/layout/Navbar";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { DaytonaInitializer } from "@/components/daytona/DaytonaInitializer";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -20,6 +21,7 @@ export default function RootLayout({
     <html lang="en" className="h-screen">
       <body className="antialiased h-screen flex flex-col overflow-hidden">
         <AuthProvider>
+          <DaytonaInitializer />
           <ErrorReporter />
           <Script
             src="https://slelguoygbfzlpylpxfs.supabase.co/storage/v1/object/public/scripts//route-messenger.js"
