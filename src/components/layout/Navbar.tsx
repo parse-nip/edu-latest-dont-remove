@@ -25,7 +25,6 @@ export const Navbar = () => {
   const dynamicLinks = (() => {
     const base: { href: string; label: string; icon: any }[] = [{ href: "/", label: "Home", icon: Home }];
     if (user) {
-      base.push({ href: "/app-builder", label: "App Builder", icon: Code });
       base.push({ href: "/hackathons", label: "Hackathons", icon: Trophy });
       return base;
     }

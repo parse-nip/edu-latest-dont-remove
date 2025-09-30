@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { User, UserCheck, Crown } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,16 @@ export function AuthForm() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // Sign up form state
   const [signUpForm, setSignUpForm] = useState({
@@ -37,25 +47,51 @@ export function AuthForm() {
     setIsLoading(true)
     setError(null)
 
-    const { user, error } = await signUp(
-      signUpForm.email,
-      signUpForm.password,
-      signUpForm.displayName,
-      signUpForm.role
-    )
+    // Failsafe: If redirect doesn't happen within 10 seconds, reset loading state
+    redirectTimeoutRef.current = setTimeout(() => {
+      console.warn('[AUTH FORM] Redirect timeout - resetting loading state')
+      setIsLoading(false)
+      setError('Authentication successful, but redirect failed. Please navigate to Hackathons manually.')
+    }, 10000)
 
-    console.log('[AUTH FORM] signUp result:', { user, error })
+    try {
+      const { user, error } = await signUp(
+        signUpForm.email,
+        signUpForm.password,
+        signUpForm.displayName,
+        signUpForm.role
+      )
 
-    if (error) {
-      console.error('[AUTH FORM] signUp error:', error)
-      setError(String(error))
-    } else {
-      console.log('[AUTH FORM] signUp successful, waiting for auth state to update...')
-      // Don't redirect immediately - let the AuthProvider handle the redirect
-      // The onAuthStateChange will trigger and update the user state
+      console.log('[AUTH FORM] signUp result:', { user, error })
+
+      if (error) {
+        console.error('[AUTH FORM] signUp error:', error)
+        setError(String(error))
+        setIsLoading(false)
+        if (redirectTimeoutRef.current) {
+          clearTimeout(redirectTimeoutRef.current)
+        }
+      } else if (user) {
+        console.log('[AUTH FORM] signUp successful, redirecting to hackathons...')
+        // Explicitly redirect after successful signup
+        router.push('/hackathons')
+        // Keep loading state true during redirect
+      } else {
+        // This shouldn't happen, but handle it gracefully
+        setError('Sign up failed. Please try again.')
+        setIsLoading(false)
+        if (redirectTimeoutRef.current) {
+          clearTimeout(redirectTimeoutRef.current)
+        }
+      }
+    } catch (err) {
+      console.error('[AUTH FORM] signUp exception:', err)
+      setError('An unexpected error occurred. Please try again.')
+      setIsLoading(false)
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current)
+      }
     }
-    
-    setIsLoading(false)
   }
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -64,20 +100,46 @@ export function AuthForm() {
     setIsLoading(true)
     setError(null)
 
-    const { user, error } = await signIn(signInForm.email, signInForm.password)
+    // Failsafe: If redirect doesn't happen within 10 seconds, reset loading state
+    redirectTimeoutRef.current = setTimeout(() => {
+      console.warn('[AUTH FORM] Redirect timeout - resetting loading state')
+      setIsLoading(false)
+      setError('Authentication successful, but redirect failed. Please navigate to Hackathons manually.')
+    }, 10000)
 
-    console.log('[AUTH FORM] signIn result:', { user, error })
+    try {
+      const { user, error } = await signIn(signInForm.email, signInForm.password)
 
-    if (error) {
-      console.error('[AUTH FORM] signIn error:', error)
-      setError(String(error))
-    } else {
-      console.log('[AUTH FORM] signIn successful, waiting for auth state to update...')
-      // Don't redirect immediately - let the AuthProvider handle the redirect
-      // The onAuthStateChange will trigger and update the user state
+      console.log('[AUTH FORM] signIn result:', { user, error })
+
+      if (error) {
+        console.error('[AUTH FORM] signIn error:', error)
+        setError(String(error))
+        setIsLoading(false)
+        if (redirectTimeoutRef.current) {
+          clearTimeout(redirectTimeoutRef.current)
+        }
+      } else if (user) {
+        console.log('[AUTH FORM] signIn successful, redirecting to hackathons...')
+        // Explicitly redirect after successful signin
+        router.push('/hackathons')
+        // Keep loading state true during redirect
+      } else {
+        // This shouldn't happen, but handle it gracefully
+        setError('Sign in failed. Please try again.')
+        setIsLoading(false)
+        if (redirectTimeoutRef.current) {
+          clearTimeout(redirectTimeoutRef.current)
+        }
+      }
+    } catch (err) {
+      console.error('[AUTH FORM] signIn exception:', err)
+      setError('An unexpected error occurred. Please try again.')
+      setIsLoading(false)
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current)
+      }
     }
-    
-    setIsLoading(false)
   }
 
   const getRoleIcon = (role: UserRole) => {

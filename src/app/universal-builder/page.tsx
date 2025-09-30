@@ -4,7 +4,6 @@ import { ChatLayout } from '@/components/chat/ChatLayout';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { redirect, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
-import { ensureDaytonaInitialized } from '@/lib/daytona/auto-init';
 
 export default function UniversalBuilderPage() {
   const { user, loading } = useAuth();
@@ -20,20 +19,6 @@ export default function UniversalBuilderPage() {
       redirect('/auth');
     }
   }, [user, loading]);
-
-  // Initialize Daytona when component mounts
-  useEffect(() => {
-    if (user) {
-      console.log('🔧 Initializing Daytona for Universal Builder...');
-      ensureDaytonaInitialized().then(success => {
-        if (success) {
-          console.log('✅ Daytona ready for Universal Builder');
-        } else {
-          console.error('❌ Failed to initialize Daytona');
-        }
-      });
-    }
-  }, [user]);
 
   if (loading) {
     return (

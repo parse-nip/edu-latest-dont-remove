@@ -13,6 +13,19 @@ export const signUp = async (email: string, password: string, displayName: strin
   try {
     console.log('[AUTH] signUp called with:', { email, displayName, role })
     
+    // Validate input
+    if (!email || !password || !displayName) {
+      const errorMsg = 'All fields are required'
+      console.error('[AUTH] Validation error:', errorMsg)
+      return { user: null, error: errorMsg }
+    }
+    
+    if (password.length < 6) {
+      const errorMsg = 'Password must be at least 6 characters'
+      console.error('[AUTH] Validation error:', errorMsg)
+      return { user: null, error: errorMsg }
+    }
+    
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -31,16 +44,31 @@ export const signUp = async (email: string, password: string, displayName: strin
       return { user: null, error: error.message }
     }
     
+    if (!data.user) {
+      const errorMsg = 'Sign up failed - no user returned'
+      console.error('[AUTH] signUp error:', errorMsg)
+      return { user: null, error: errorMsg }
+    }
+    
+    console.log('[AUTH] signUp successful, user:', data.user.id)
     return { user: data.user, error: null }
   } catch (error) {
     console.error('[AUTH] signUp catch error:', error)
-    return { user: null, error: String(error) }
+    const errorMsg = error instanceof Error ? error.message : 'An unexpected error occurred during sign up'
+    return { user: null, error: errorMsg }
   }
 }
 
 export const signIn = async (email: string, password: string) => {
   try {
     console.log('[AUTH] signIn called with:', { email })
+    
+    // Validate input
+    if (!email || !password) {
+      const errorMsg = 'Email and password are required'
+      console.error('[AUTH] Validation error:', errorMsg)
+      return { user: null, error: errorMsg }
+    }
     
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -51,13 +79,28 @@ export const signIn = async (email: string, password: string) => {
     
     if (error) {
       console.error('[AUTH] signIn error:', error)
-      return { user: null, error: error.message }
+      // Provide user-friendly error messages
+      let errorMsg = error.message
+      if (error.message.includes('Invalid login credentials')) {
+        errorMsg = 'Invalid email or password'
+      } else if (error.message.includes('Email not confirmed')) {
+        errorMsg = 'Please check your email to confirm your account'
+      }
+      return { user: null, error: errorMsg }
     }
     
+    if (!data.user) {
+      const errorMsg = 'Sign in failed - no user returned'
+      console.error('[AUTH] signIn error:', errorMsg)
+      return { user: null, error: errorMsg }
+    }
+    
+    console.log('[AUTH] signIn successful, user:', data.user.id)
     return { user: data.user, error: null }
   } catch (error) {
     console.error('[AUTH] signIn catch error:', error)
-    return { user: null, error: String(error) }
+    const errorMsg = error instanceof Error ? error.message : 'An unexpected error occurred during sign in'
+    return { user: null, error: errorMsg }
   }
 }
 

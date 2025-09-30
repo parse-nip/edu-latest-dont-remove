@@ -18,7 +18,7 @@ export function ErrorBubble({ message, details, onFixWithAI }: ErrorBubbleProps)
   const prompt = `Fix this app error. Error: ${message}${details ? `\nDETAILS:\n${details}` : ''}`;
 
   return (
-    <div className="fixed bottom-4 left-4 z-50 max-w-sm shadow-lg border border-destructive/30 bg-destructive/10 text-destructive rounded-lg p-3 backdrop-blur">
+    <div className="fixed bottom-4 right-4 z-50 max-w-sm shadow-lg border border-destructive/30 bg-destructive/10 text-destructive rounded-lg p-3 backdrop-blur">
       <div className="flex items-start gap-3">
         <AlertCircle className="h-5 w-5 mt-0.5" />
         <div className="flex-1">

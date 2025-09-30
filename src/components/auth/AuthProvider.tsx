@@ -25,21 +25,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     console.log('[AUTH PROVIDER] Starting initialization')
     
-    // Set a timeout to prevent infinite loading
+    // Set a timeout to prevent infinite loading (reduced to 5 seconds for better UX)
     const loadingTimeout = setTimeout(() => {
-      console.log('[AUTH PROVIDER] Loading timeout reached, forcing loading to false')
+      console.warn('[AUTH PROVIDER] Loading timeout reached, forcing loading to false')
       setLoading(false)
       setInitialized(true)
-    }, 10000) // 10 second timeout
+    }, 5000) // 5 second timeout
     
     const initAuth = async () => {
       try {
-        // Check if we already have a session in storage to avoid unnecessary API calls
-        const existingSession = localStorage.getItem('supabase.auth.token')
-        console.log('[AUTH PROVIDER] Existing session in storage:', !!existingSession)
-        
         console.log('[AUTH PROVIDER] Getting initial session...')
-        const { data: { session } } = await supabase.auth.getSession()
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('[AUTH PROVIDER] Error getting session:', error)
+          setUser(null)
+          return
+        }
+        
         console.log('[AUTH PROVIDER] Initial session:', session ? 'present' : 'null')
         
         if (session?.user) {
@@ -70,9 +73,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[AUTH PROVIDER] Auth state change:', { event, session: session ? 'present' : 'null' })
       
-      // Skip if we're already initialized and this is just a token refresh
-      if (initialized && event === 'TOKEN_REFRESHED') {
-        console.log('[AUTH PROVIDER] Skipping token refresh, already initialized')
+      // Skip token refresh events to avoid unnecessary re-renders
+      if (event === 'TOKEN_REFRESHED') {
+        console.log('[AUTH PROVIDER] Skipping token refresh event')
         return
       }
       
@@ -82,22 +85,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const authUser = await getCurrentUser()
           console.log('[AUTH PROVIDER] getCurrentUser result in state change:', authUser)
           setUser(authUser)
-          
-          // If this is a sign in event and we're on the auth page, redirect to hackathons
-          if (event === 'SIGNED_IN' && typeof window !== 'undefined' && window.location.pathname === '/auth') {
-            console.log('[AUTH PROVIDER] User signed in, redirecting to hackathons...')
-            window.location.href = '/hackathons'
-          }
         } else {
           console.log('[AUTH PROVIDER] No session in state change, setting user to null')
           setUser(null)
         }
+        
+        // Ensure loading is always set to false after processing auth changes
+        setLoading(false)
+        setInitialized(true)
       } catch (error) {
         console.error('[AUTH PROVIDER] Error in auth state change:', error)
         setUser(null)
-      } finally {
-        // Always set loading to false after processing any auth state change
-        console.log('[AUTH PROVIDER] Setting loading to false after auth state change')
         setLoading(false)
         setInitialized(true)
       }

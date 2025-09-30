@@ -11,6 +11,7 @@ import { TypewriterEffectSmooth } from "@/components/ui/typewriter-effect";
 import { ProjectImporter } from "@/components/project/ProjectImporter";
 import dynamic from "next/dynamic";
 import { ErrorBubble } from "@/components/ui/ErrorBubble";
+import { BuildStatus } from "./BuildStatus";
 
 // Dynamically import components to avoid SSR issues
 const EmbeddedWorkbench = dynamic(() => import("./EmbeddedWorkbench").then(mod => ({ default: mod.EmbeddedWorkbench })), {
@@ -44,7 +45,7 @@ interface ChatLayoutProps {
 
 export function ChatLayout({ initialPrompt, children }: { initialPrompt?: string; children?: ReactNode }) {
   const [selectedModel, setSelectedModel] = React.useState<string>('x-ai/grok-4-fast:free'); // Default to Grok 4 Fast Free
-  const { messages, addMessage, isLoading, isInitialLoading, previewUrl, lastError, forceCompleteLoading } = useChat(initialPrompt, selectedModel);
+  const { messages, addMessage, isLoading, isInitialLoading, previewUrl, lastError, forceCompleteLoading, buildStatus, currentBuildFile, buildFileProgress, installMessage } = useChat(initialPrompt, selectedModel);
   const [showImporter, setShowImporter] = React.useState(false);
 
   // Initialize OpenRouter on component mount
@@ -115,6 +116,18 @@ export function ChatLayout({ initialPrompt, children }: { initialPrompt?: string
           </div>
           <div className="flex-1 min-h-0 flex flex-col">
             <ChatMessages messages={messages} isLoading={isLoading} />
+            
+            {/* Build Status - show between messages and input */}
+            {buildStatus && (
+              <BuildStatus 
+                status={buildStatus}
+                currentFile={currentBuildFile}
+                totalFiles={buildFileProgress.total}
+                currentFileIndex={buildFileProgress.current}
+                installMessage={installMessage}
+              />
+            )}
+            
             <div className="flex-none">
               <ChatInput
                 onSend={(content) =>
@@ -135,36 +148,32 @@ export function ChatLayout({ initialPrompt, children }: { initialPrompt?: string
         className={`w-[3px] cursor-col-resize bg-border hover:bg-foreground/20 ${dragging ? "bg-foreground/30" : ""}`}
       />
 
-      {/* Right: App area with tabs and info panel */}
-      <div className="flex-1 h-full">
-        <div className="h-full flex flex-col overflow-hidden">
-          <div className="border-b border-border px-4 py-2 flex items-center gap-2">
-            <button
-              onClick={() => setTab("preview")}
-              className={`${
-                tab === "preview"
-                  ? "bg-secondary text-foreground"
+      {/* Right: App area with tabs - NO scrollbar */}
+      <div className="flex-1 h-full flex flex-col overflow-hidden">
+        <div className="flex-shrink-0 border-b border-border px-4 py-2 flex items-center gap-2">
+          <button
+            onClick={() => setTab("preview")}
+            className={`${
+              tab === "preview"
+                ? "bg-secondary text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            } px-3 py-1.5 text-sm rounded-md`}
+          >
+            Preview
+          </button>
+          <button
+            onClick={() => setTab("code")}
+            className={`${
+              tab === "code"
+                ? "bg-secondary text-foreground"
                   : "text-muted-foreground hover:text-foreground"
-              } px-3 py-1.5 text-sm rounded-md`}
-            >
-              Preview
-            </button>
-            <button
-              onClick={() => setTab("code")}
-              className={`${
-                tab === "code"
-                  ? "bg-secondary text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              } px-3 py-1.5 text-sm rounded-md`}
-            >
-              Code
-            </button>
-            <div className="ml-auto flex items-center gap-2">
-              {/* Import button moved to chat window */}
-            </div>
-          </div>
+            } px-3 py-1.5 text-sm rounded-md`}
+          >
+            Code
+          </button>
+        </div>
 
-          <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
             {tab === "preview" ? (
               isInitialLoading ? (
                 <div className="h-full flex flex-col items-center justify-center p-4 space-y-8 text-foreground">
@@ -230,7 +239,6 @@ export function ChatLayout({ initialPrompt, children }: { initialPrompt?: string
               </div>
             )}
           </div>
-        </div>
       </div>
       
       {/* Project Import Modal */}

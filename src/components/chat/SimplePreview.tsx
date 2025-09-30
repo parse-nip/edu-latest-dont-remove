@@ -312,49 +312,42 @@ export const SimplePreview = memo(({ files = {}, isStreaming, previewUrl: extern
     }
   };
 
-  // Use external preview URL if available, otherwise generate local preview
+  // Use WebContainer preview URL directly
   useEffect(() => {
-    console.log('🔍 SimplePreview - externalPreviewUrl:', externalPreviewUrl);
-    console.log('🔍 SimplePreview - files count:', Object.keys(files).length);
-    console.log('🔍 SimplePreview - isStreaming:', isStreaming);
+    console.log('🔍 SimplePreview useEffect triggered');
+    console.log('  - externalPreviewUrl:', externalPreviewUrl);
+    console.log('  - files count:', Object.keys(files).length);
+    console.log('  - files:', Object.keys(files));
+    console.log('  - isStreaming:', isStreaming);
     
-    if (externalPreviewUrl) {
+    // ONLY use the preview URL if it's provided and not our own app's URL
+    if (externalPreviewUrl && !externalPreviewUrl.includes('localhost:3000/')) {
+      console.log('✅ Using WebContainer preview URL:', externalPreviewUrl);
       setPreviewUrl(externalPreviewUrl);
       setIsRunning(true);
       setError(null);
-      setDebugInfo(`Using Daytona preview URL: ${externalPreviewUrl}`);
-      console.log('✅ Using Daytona preview URL:', externalPreviewUrl);
-      
-      // Test if the URL is accessible
-      fetch(externalPreviewUrl, { method: 'HEAD' })
-        .then(response => {
-          console.log('🔍 Preview URL test result:', response.status, response.statusText);
-          if (!response.ok) {
-            setError(`Preview URL not accessible: ${response.status} ${response.statusText}`);
-            setDebugInfo(`Preview URL test failed: ${response.status}`);
-          }
-        })
-        .catch(error => {
-          console.log('🔍 Preview URL test error:', error);
-          setError(`Preview URL not accessible: ${error.message}`);
-          setDebugInfo(`Preview URL test error: ${error.message}`);
-        });
-    } else if (Object.keys(files).length > 0 && !isStreaming) {
-      // Fallback to local preview if no Daytona URL
-      console.log('🔄 No Daytona URL, generating local preview...');
-      setDebugInfo('No Daytona URL available, using local preview');
-      generatePreview();
+      setDebugInfo(`Using WebContainer preview: ${externalPreviewUrl}`);
+    } else if (Object.keys(files).length === 0) {
+      console.log('⚠️ No files available for preview');
+      setDebugInfo('No files available');
+      setPreviewUrl(null);
+      setIsRunning(false);
+    } else if (isStreaming) {
+      console.log('🔍 Streaming in progress, waiting...');
+      setDebugInfo('Waiting for generation to complete...');
+      setPreviewUrl(null);
+      setIsRunning(false);
     } else {
-      console.log('🔍 SimplePreview - No action taken:', {
-        hasExternalUrl: !!externalPreviewUrl,
-        hasFiles: Object.keys(files).length > 0,
-        isStreaming
-      });
+      console.log('⚠️ No preview URL available yet, app may still be starting...');
+      console.log('⚠️ externalPreviewUrl was:', externalPreviewUrl);
+      setDebugInfo('Waiting for preview to start...');
+      setPreviewUrl(null);
+      setIsRunning(false);
     }
-  }, [files, isStreaming, generatePreview, externalPreviewUrl]);
+  }, [externalPreviewUrl, files, isStreaming]);
 
   return (
-    <div className="h-full flex flex-col bg-card border border-border shadow-sm rounded-lg overflow-hidden">
+    <div className="h-full w-full flex flex-col bg-card border border-border shadow-sm rounded-lg overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/50">
         <div className="flex items-center gap-2">
@@ -421,24 +414,51 @@ export const SimplePreview = memo(({ files = {}, isStreaming, previewUrl: extern
             src={previewUrl}
             className="w-full h-full border-0"
             title="Generated App Preview"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-            onLoad={() => setDebugInfo('Preview loaded successfully')}
-            onError={() => setError('Failed to load preview iframe')}
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads"
+            onLoad={() => {
+              setDebugInfo('Preview loaded successfully');
+              console.log('✅ Preview iframe loaded:', previewUrl);
+            }}
+            onError={(e) => {
+              setError('Failed to load preview iframe');
+              console.error('❌ Preview iframe error:', e);
+            }}
+            allow="cross-origin-isolated"
           />
         ) : Object.keys(files).length === 0 ? (
-          <div className="h-full flex items-center justify-center p-4 text-center">
-            <div>
-              <div className="text-muted-foreground text-lg font-medium mb-2">No Preview Available</div>
-              <p className="text-sm text-muted-foreground">Start building your app to see the preview here.</p>
+          <div className="h-full flex items-center justify-center p-4 text-center bg-gradient-to-br from-background via-muted/20 to-background">
+            <div className="max-w-md">
+              <div className="mb-6">
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                  <svg className="w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-foreground text-xl font-semibold mb-2">No app yet</div>
+              <p className="text-sm text-muted-foreground">Send a message to generate an app.</p>
             </div>
           </div>
         ) : (
-          <div className="h-full flex items-center justify-center p-4 text-center">
-            <div>
-              <div className="text-muted-foreground text-lg font-medium mb-2">Generating Preview...</div>
-              <p className="text-sm text-muted-foreground mb-4">Please wait while we prepare your app preview.</p>
-              <div className="flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="h-full flex items-center justify-center p-4 text-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 dark:from-blue-950/20 dark:via-purple-950/20 dark:to-pink-950/20">
+            <div className="max-w-md">
+              <div className="mb-6">
+                <div className="relative w-24 h-24 mx-auto">
+                  <div className="absolute inset-0 border-4 border-primary/20 rounded-full"></div>
+                  <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <svg className="w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <div className="text-foreground text-xl font-semibold mb-3">Setting up your app...</div>
+              <p className="text-sm text-muted-foreground mb-4">Installing dependencies and starting the dev server</p>
+              <div className="flex items-center justify-center gap-1">
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
               </div>
             </div>
           </div>

@@ -1,10 +1,9 @@
 import { WebContainer } from '@webcontainer/api';
-import { getDaytonaClient } from '../daytona/client';
 import { projectAnalyzer, type ProjectStructure } from '../project/analyzer';
+import { webcontainer } from '../webcontainer';
 
 export interface RunnerConfig {
-  environment: 'webcontainer' | 'daytona';
-  workspaceId?: string; // For Daytona
+  environment: 'webcontainer';
   port?: number;
 }
 
@@ -13,7 +12,10 @@ export interface RunResult {
   previewUrl?: string;
   logs: string[];
   error?: string;
+  onInstallProgress?: (message: string, packageName?: string) => void;
 }
+
+export type InstallProgressCallback = (message: string, packageName?: string) => void;
 
 export interface InstallResult {
   success: boolean;
@@ -26,19 +28,15 @@ class UniversalAppRunner {
 
   constructor(webcontainerPromise?: Promise<WebContainer>) {
     this.webcontainer = webcontainerPromise || null;
+    console.log('🚀 UniversalAppRunner initialized with WebContainer:', !!this.webcontainer);
   }
 
   async installDependencies(
     projectStructure: ProjectStructure,
     config: RunnerConfig
   ): Promise<InstallResult> {
-    const { packageManager } = projectStructure;
-    
-    if (config.environment === 'daytona' && config.workspaceId) {
-      return this.installDependenciesDaytona(projectStructure, config.workspaceId);
-    } else {
-      return this.installDependenciesWebContainer(projectStructure);
-    }
+    // Always use WebContainer
+    return this.installDependenciesWebContainer(projectStructure);
   }
 
   private async installDependenciesWebContainer(
@@ -92,67 +90,27 @@ class UniversalAppRunner {
     }
   }
 
-  private async installDependenciesDaytona(
-    projectStructure: ProjectStructure,
-    workspaceId: string
-  ): Promise<InstallResult> {
-    const daytonaClient = getDaytonaClient();
-    if (!daytonaClient) {
-      return {
-        success: false,
-        logs: [],
-        error: 'Daytona client not initialized'
-      };
-    }
-
-    try {
-      const { packageManager } = projectStructure;
-      
-      let installCommand = 'npm install';
-      if (packageManager === 'yarn') installCommand = 'yarn install';
-      else if (packageManager === 'pnpm') installCommand = 'pnpm install';
-      else if (packageManager === 'bun') installCommand = 'bun install';
-
-      const result = await daytonaClient.executeCommand(workspaceId, installCommand);
-      
-      return {
-        success: result.exitCode === 0,
-        logs: [result.stdout, result.stderr].filter(Boolean),
-        error: result.exitCode !== 0 ? result.stderr || 'Installation failed' : undefined
-      };
-    } catch (error) {
-      return {
-        success: false,
-        logs: [],
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  }
 
   async runApp(
     projectStructure: ProjectStructure,
-    config: RunnerConfig
+    config: RunnerConfig,
+    onInstallProgress?: InstallProgressCallback
   ): Promise<RunResult> {
-    console.log('🏃 UniversalRunner.runApp called');
-    console.log('🏃 Config:', config);
-    console.log('🏃 Project structure:', {
+    console.log('🚀 UniversalRunner.runApp called (WebContainer only)');
+    console.log('📊 Project:', {
       framework: projectStructure.framework,
       packageManager: projectStructure.packageManager,
-      buildTool: projectStructure.buildTool
+      buildTool: projectStructure.buildTool,
+      fileCount: projectStructure.files.length
     });
     
-    if (config.environment === 'daytona' && config.workspaceId) {
-      console.log('🏃 Using Daytona environment');
-      return this.runAppDaytona(projectStructure, config.workspaceId, config.port);
-    } else {
-      console.log('🏃 Using WebContainer environment');
-      return this.runAppWebContainer(projectStructure, config.port);
-    }
+    return this.runAppWebContainer(projectStructure, config.port, onInstallProgress);
   }
 
   private async runAppWebContainer(
     projectStructure: ProjectStructure,
-    port = 3000
+    port = 3000,
+    onInstallProgress?: InstallProgressCallback
   ): Promise<RunResult> {
     if (!this.webcontainer) {
       return {
@@ -164,39 +122,210 @@ class UniversalAppRunner {
 
     try {
       const webcontainer = await this.webcontainer;
+      console.log('✅ WebContainer instance obtained');
+      const logs: string[] = [];
+      
+      // Write all files to WebContainer first
+      console.log('📁 Writing', projectStructure.files.length, 'files to WebContainer...');
+      console.log('📁 Files to write:', projectStructure.files.map(f => f.path));
+      
+      let filesWritten = 0;
+      for (const file of projectStructure.files) {
+        if (file.type === 'file') {
+          try {
+            // Validate and fix JSON files before writing
+            let contentToWrite = file.content;
+            if (file.path.endsWith('.json')) {
+              console.log(`🔍 Validating JSON file: ${file.path}`);
+              try {
+                // Try to parse to validate
+                JSON.parse(file.content);
+                console.log(`✅ Valid JSON: ${file.path}`);
+              } catch (jsonError) {
+                console.warn(`⚠️ Invalid JSON in ${file.path}, attempting to fix...`);
+                console.log(`Original content preview:`, file.content.substring(0, 200));
+                
+                // Fix common JSON issues
+                contentToWrite = file.content
+                  // Fix escaped newlines that should be actual newlines in JSON
+                  .replace(/\\n/g, '\n')
+                  // Fix malformed array/object separators like ],n
+                  .replace(/,\s*n\s+"/g, ',\n    "')
+                  .replace(/]\s*n\s+"/g, '],\n    "')
+                  // Remove trailing commas
+                  .replace(/,(\s*[}\]])/g, '$1')
+                  // Ensure proper quotes
+                  .replace(/(\w+):/g, '"$1":');
+                
+                try {
+                  JSON.parse(contentToWrite);
+                  console.log(`✅ Fixed JSON: ${file.path}`);
+                } catch (stillInvalid) {
+                  console.error(`❌ Could not fix JSON in ${file.path}:`, stillInvalid);
+                  // Try to pretty-print and re-parse what we can
+                  try {
+                    const partial = JSON.parse(file.content.substring(0, file.content.lastIndexOf('}') + 1));
+                    contentToWrite = JSON.stringify(partial, null, 2);
+                    console.log(`🔧 Used partial JSON for ${file.path}`);
+                  } catch (e) {
+                    console.error(`❌ Total JSON failure, using original`);
+                  }
+                }
+              }
+            }
+            
+            // Ensure directory exists before writing file
+            const dirPath = file.path.split('/').slice(0, -1).join('/');
+            if (dirPath) {
+              console.log(`📂 Creating directory: ${dirPath}`);
+              try {
+                await webcontainer.fs.mkdir(dirPath, { recursive: true });
+              } catch (mkdirError) {
+                // Directory might already exist, that's OK
+                console.log(`  (directory may already exist)`);
+              }
+            }
+            
+            console.log(`📝 Writing file: ${file.path} (${contentToWrite.length} bytes)`);
+            await webcontainer.fs.writeFile(file.path, contentToWrite);
+            filesWritten++;
+            console.log(`✅ Wrote file: ${file.path}`);
+            logs.push(`✅ Wrote ${file.path}`);
+          } catch (error) {
+            console.error(`❌ Failed to write file ${file.path}:`, error);
+            logs.push(`❌ Error writing ${file.path}: ${error}`);
+          }
+        }
+      }
+      
+      console.log(`📁 Wrote ${filesWritten} out of ${projectStructure.files.length} files`);
+      
+      // Verify files were written by reading package.json
+      try {
+        const packageJson = await webcontainer.fs.readFile('package.json', 'utf-8');
+        console.log('✅ Verified package.json exists');
+        console.log('📦 package.json content:', packageJson.substring(0, 200));
+      } catch (error) {
+        console.error('❌ Could not read package.json after writing:', error);
+      }
+      
+      // Install dependencies with better error handling
+      const installCommand = this.getInstallCommand(projectStructure);
+      if (installCommand) {
+        console.log('📦 Installing dependencies:', installCommand);
+        logs.push(`📦 Installing dependencies...`);
+        console.log('⏳ This may take a moment...');
+        
+        try {
+          const installProcess = await webcontainer.spawn('jsh', ['-c', installCommand], {
+            env: { 
+              npm_config_yes: 'true',
+              npm_config_prefer_offline: 'false',
+              npm_config_audit: 'false',
+              npm_config_fund: 'false'
+            }
+          });
+
+          let installOutput = '';
+          let lastPackage = '';
+          installProcess.output.pipeTo(
+            new WritableStream({
+              write(data) {
+                installOutput += data;
+                logs.push(data);
+                console.log(data);
+                
+                // Parse package installation progress
+                if (onInstallProgress) {
+                  // Match patterns like "added 1324 packages" or package names being installed
+                  const addedMatch = data.match(/added (\d+) packages?/);
+                  const packageMatch = data.match(/(?:npm WARN|npm ERR!)?\s+([a-z0-9@\/-]+)@/);
+                  
+                  if (addedMatch) {
+                    onInstallProgress(`Added ${addedMatch[1]} packages`);
+                  } else if (packageMatch && packageMatch[1] !== lastPackage) {
+                    lastPackage = packageMatch[1];
+                    onInstallProgress(`Installing ${packageMatch[1]}...`, packageMatch[1]);
+                  } else if (data.includes('Installing') || data.includes('Downloading')) {
+                    onInstallProgress(data.trim().substring(0, 100));
+                  }
+                }
+              }
+            })
+          );
+
+          const installExitCode = await installProcess.exit;
+          console.log('📦 Install exit code:', installExitCode);
+          
+          if (installExitCode !== 0) {
+            console.error('📦 Install failed with output:', installOutput);
+            logs.push(`⚠️ Install had warnings (code ${installExitCode})`);
+            console.log('⚠️ Continuing anyway - some dependencies may have installed successfully');
+            // Don't fail completely - continue and try to start anyway
+          } else {
+            console.log('✅ Dependencies installed successfully');
+            logs.push(`✅ Dependencies installed successfully`);
+          }
+        } catch (installError) {
+          console.error('❌ Install error:', installError);
+          logs.push(`Install error: ${installError}`);
+          // Continue anyway - some apps might work without install
+        }
+      }
+      
+      // Get the start command
       const startCommand = this.getStartCommand(projectStructure);
       
       if (!startCommand) {
         return {
           success: false,
-          logs: [],
+          logs,
           error: 'No start command found for this project'
         };
       }
 
-      const logs: string[] = [];
+      console.log('🚀 Starting development server...');
+      console.log('   Command:', startCommand);
+      logs.push(`🚀 Starting dev server with: ${startCommand}`);
+      console.log('⏳ Waiting for server to start...');
       
-      const process = await webcontainer.spawn('jsh', ['-c', startCommand], {
+      // Start the dev server in background (don't await exit)
+      const serverProcess = await webcontainer.spawn('jsh', ['-c', startCommand], {
         env: { 
-          npm_config_yes: true,
-          PORT: port.toString()
+          npm_config_yes: 'true',
+          PORT: port.toString(),
+          NODE_ENV: 'development'
         }
       });
 
-      process.output.pipeTo(
+      // Stream server output but don't wait for it to exit
+      serverProcess.output.pipeTo(
         new WritableStream({
           write(data) {
             logs.push(data);
-            console.log(data);
+            console.log('[Server]', data);
           }
         })
-      );
+      ).catch(err => {
+        console.warn('Output stream error:', err);
+      });
 
-      // Wait a bit for the server to start
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      // Get the preview URL from WebContainer
+      // Wait for the server to be ready
+      console.log('⏳ Waiting for server to start...');
+      
+      // Get the preview URL from WebContainer (with server-ready event)
       const previewUrl = await this.getWebContainerPreviewUrl(webcontainer, port);
+      console.log('✅ Preview URL:', previewUrl);
+      
+      if (!previewUrl) {
+        console.error('❌ No preview URL available - server may not have started');
+        return {
+          success: false,
+          previewUrl: undefined,
+          logs,
+          error: 'Server started but no preview URL available. Check console for errors.'
+        };
+      }
       
       return {
         success: true,
@@ -204,6 +333,7 @@ class UniversalAppRunner {
         logs
       };
     } catch (error) {
+      console.error('❌ WebContainer run error:', error);
       return {
         success: false,
         logs: [],
@@ -212,141 +342,6 @@ class UniversalAppRunner {
     }
   }
 
-  private async runAppDaytona(
-    projectStructure: ProjectStructure,
-    sandboxId: string,
-    port = 3000
-  ): Promise<RunResult> {
-    console.log('🏃 runAppDaytona called');
-    console.log('🏃 Sandbox ID:', sandboxId);
-    console.log('🏃 Port:', port);
-    
-    // Check if this is a mock sandbox (fallback when real Daytona fails)
-    if (sandboxId.startsWith('mock-sandbox-')) {
-      console.log('🔧 Mock sandbox detected, creating mock Daytona URL');
-      const mockUrl = `https://${sandboxId}.daytona.app:${port}`;
-      console.log('🔧 Mock Daytona URL:', mockUrl);
-      
-      // Determine the reason for using mock
-      let reason = 'Mock Daytona sandbox created successfully';
-      if (sandboxId.includes('cors')) {
-        reason = 'Using mock sandbox due to CORS issues with Daytona API';
-      } else if (sandboxId.includes('api-error')) {
-        reason = 'Using mock sandbox due to Daytona API authentication/endpoint issues';
-      } else if (sandboxId.includes('error')) {
-        reason = 'Using mock sandbox due to unknown Daytona integration issues';
-      }
-      
-      return { success: true, previewUrl: mockUrl, logs: [reason] };
-    }
-    
-    const daytonaClient = getDaytonaClient();
-    console.log('🏃 Daytona client available:', !!daytonaClient);
-    
-    if (!daytonaClient) {
-      console.error('❌ Daytona client not initialized');
-      return {
-        success: false,
-        logs: [],
-        error: 'Daytona client not initialized'
-      };
-    }
-
-    try {
-      const startCommand = this.getStartCommand(projectStructure, port);
-      console.log('🏃 Start command:', startCommand);
-      
-      if (!startCommand) {
-        console.error('❌ No start command found for project');
-        return {
-          success: false,
-          logs: [],
-          error: 'No start command found for this project'
-        };
-      }
-
-      // Write files to the Daytona sandbox using command execution
-      console.log('🏃 Writing files to Daytona sandbox...');
-      for (const file of projectStructure.files) {
-        if (file.type === 'file') {
-          console.log(`🏃 Writing file: ${file.path}`);
-          try {
-            // Use command execution to create files instead of file upload API
-            const targetPath = `/home/daytona/${file.path}`;
-            const escapedContent = file.content.replace(/'/g, "'\"'\"'").replace(/\$/g, '\\$');
-            const command = `mkdir -p "$(dirname "${targetPath}")" && cat > "${targetPath}" << 'EOF'\n${file.content}\nEOF`;
-            await daytonaClient.executeCommand(sandboxId, command, '/home/daytona');
-            console.log(`✅ File written: ${file.path}`);
-          } catch (error) {
-            console.error(`❌ Failed to write file ${file.path}:`, error);
-          }
-        }
-      }
-      
-      // Wait a moment for the sandbox to process the files
-      console.log('🏃 Waiting for sandbox to process files...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Install dependencies first
-      console.log('🏃 Installing dependencies...');
-      try {
-        const installCommand = this.getInstallCommand(projectStructure);
-        if (installCommand) {
-          console.log('🏃 Install command:', installCommand);
-          const installResult = await daytonaClient.executeCommand(sandboxId, installCommand, '/home/daytona');
-          console.log('🏃 Install result:', installResult);
-          
-          // Wait for installation to complete
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        }
-      } catch (error) {
-        console.error('❌ Failed to install dependencies:', error);
-        // Continue anyway, dependencies might already be installed
-      }
-      
-      // Execute the start command to run the application
-      console.log('🏃 Executing start command in sandbox...');
-      try {
-        const commandResult = await daytonaClient.executeCommand(sandboxId, startCommand, '/home/daytona');
-        console.log('🏃 Command execution result:', commandResult);
-        
-        // Wait a bit for the application to start
-        console.log('🏃 Waiting for application to start...');
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      } catch (error) {
-        console.error('❌ Failed to execute start command:', error);
-        // Continue anyway, the app might still work
-      }
-      
-      // Get the preview URL
-      console.log('🏃 Getting sandbox preview URL...');
-      const previewUrl = await daytonaClient.getSandboxPreviewUrl(sandboxId, port);
-      console.log('🏃 Preview URL:', previewUrl);
-      
-      let finalPreviewUrl = previewUrl;
-      if (!previewUrl) {
-        console.log('🏃 No preview URL available yet, generating mock Daytona URL...');
-        finalPreviewUrl = `https://${sandboxId}.daytona.io:${port}`;
-        console.log('🏃 Mock preview URL:', finalPreviewUrl);
-      }
-      
-      return {
-        success: true,
-        previewUrl: finalPreviewUrl,
-        logs: [
-          `Files written to sandbox successfully`,
-          `Preview URL: ${finalPreviewUrl}`
-        ]
-      };
-    } catch (error) {
-      console.error('❌ runAppDaytona error:', error);
-      return {
-        success: false,
-        logs: [],
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  }
 
   private getInstallCommand(projectStructure: ProjectStructure): string | null {
     const { packageManager } = projectStructure;
@@ -373,53 +368,59 @@ class UniversalAppRunner {
   }
 
   private getStartCommand(projectStructure: ProjectStructure, port = 3000): string | null {
-    const { scripts, framework } = projectStructure;
+    const { scripts, framework, dependencies, devDependencies } = projectStructure;
 
-    // Framework-specific commands with proper host and port binding
+    // Check if react-scripts is present (Create React App)
+    const hasReactScripts = 'react-scripts' in dependencies || 'react-scripts' in devDependencies;
+    
+    // WebContainer-compatible commands - simpler is better
     switch (framework) {
       case 'react':
-        // For React (Create React App), use HOST and PORT env vars
-        return `HOST=0.0.0.0 PORT=${port} npm start`;
-      case 'next':
-        // For Next.js, use -H for host and -p for port
-        return `npx next dev -H 0.0.0.0 -p ${port}`;
-      case 'vue':
-        // For Vue (Vite), use --host and --port flags
-        return `npm run dev -- --host 0.0.0.0 --port ${port}`;
-      case 'nuxt':
-        // For Nuxt, use --host and --port flags
-        return `npm run dev -- --host 0.0.0.0 --port ${port}`;
-      case 'angular':
-        // For Angular, use --host and --port flags
-        return `ng serve --host 0.0.0.0 --port ${port}`;
-      case 'svelte':
-        // For Svelte (Vite), use --host and --port flags
-        return `npm run dev -- --host 0.0.0.0 --port ${port}`;
-      case 'vanilla':
-        // For vanilla projects, use serve with proper host and port
-        return `npx serve -s . -l ${port} -H 0.0.0.0`;
-      default:
-        // Check for common start scripts and modify them
+        // For React with react-scripts, use npm start
+        if (hasReactScripts || scripts.start) {
+          return `npm start`;
+        }
+        // For React without react-scripts, check for dev script (Vite)
         if (scripts.dev) {
-          // Try to modify existing dev script to include host and port
-          if (scripts.dev.includes('next dev')) {
-            return `npx next dev -H 0.0.0.0 -p ${port}`;
-          } else if (scripts.dev.includes('vite')) {
-            return `npm run dev -- --host 0.0.0.0 --port ${port}`;
-          } else if (scripts.dev.includes('webpack')) {
-            return `HOST=0.0.0.0 PORT=${port} npm run dev`;
-          } else {
-            // Generic fallback - try to add host and port
-            return `HOST=0.0.0.0 PORT=${port} ${scripts.dev}`;
-          }
+          return `npm run dev`;
+        }
+        // Fallback to building and serving for React
+        if (scripts.build) {
+          return `npm run build && npx http-server build -p ${port}`;
+        }
+        // Last resort - serve source files (won't work for JSX, but better than nothing)
+        return `npx http-server public -p ${port} || npx http-server -p ${port}`;
+      case 'next':
+        // For Next.js
+        return `npm run dev`;
+      case 'vue':
+      case 'nuxt':
+      case 'svelte':
+        // For Vite-based frameworks
+        return `npm run dev`;
+      case 'angular':
+        // For Angular
+        return `npm start`;
+      case 'vanilla':
+        // For vanilla projects, use a simple http-server
+        return `npx http-server -p ${port}`;
+      default:
+        // Check for common start scripts in order of preference
+        if (scripts.dev) {
+          return `npm run dev`;
         }
         if (scripts.start) {
-          return `HOST=0.0.0.0 PORT=${port} ${scripts.start}`;
+          return `npm start`;
         }
         if (scripts.serve) {
-          return `HOST=0.0.0.0 PORT=${port} ${scripts.serve}`;
+          return `npm run serve`;
         }
-        return null;
+        // If there's a build script but no start/dev, build and serve
+        if (scripts.build) {
+          return `npm run build && npx http-server dist -p ${port} || npx http-server build -p ${port}`;
+        }
+        // Ultimate fallback
+        return `npx http-server -p ${port}`;
     }
   }
 
@@ -427,14 +428,48 @@ class UniversalAppRunner {
     webcontainer: WebContainer,
     port: number
   ): Promise<string | undefined> {
-    try {
-      // WebContainer should expose the port automatically
-      // This is a simplified implementation - actual WebContainer API may differ
-      return `http://localhost:${port}`;
-    } catch (error) {
-      console.warn('Could not get WebContainer preview URL:', error);
-      return undefined;
-    }
+    return new Promise((resolve) => {
+      let resolved = false;
+      
+      // Listen for server-ready event to get the actual preview URL
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          console.warn('⏰ Timeout waiting for WebContainer server-ready event');
+          console.warn('  Trying to get preview URL directly from WebContainer');
+          
+          // Try to construct the preview URL manually
+          // WebContainer exposes servers on specific origins
+          try {
+            const previewOrigin = (webcontainer as any).previewOrigin;
+            if (previewOrigin) {
+              const url = `${previewOrigin}:${port}`;
+              console.log('✅ Constructed preview URL:', url);
+              resolve(url);
+            } else {
+              console.error('❌ Could not construct preview URL');
+              resolve(undefined);
+            }
+          } catch (err) {
+            console.error('❌ Error constructing preview URL:', err);
+            resolve(undefined);
+          }
+        }
+      }, 30000); // 30 second timeout
+      
+      webcontainer.on('server-ready', (serverPort, url) => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          console.log('🌐 WebContainer server ready!');
+          console.log('  Port:', serverPort);
+          console.log('  URL:', url);
+          resolve(url);
+        }
+      });
+      
+      console.log('👂 Listening for server-ready event on port', port);
+    });
   }
 
   async updateFile(
@@ -442,11 +477,8 @@ class UniversalAppRunner {
     content: string,
     config: RunnerConfig
   ): Promise<boolean> {
-    if (config.environment === 'daytona' && config.workspaceId) {
-      return this.updateFileDaytona(filePath, content, config.workspaceId);
-    } else {
-      return this.updateFileWebContainer(filePath, content);
-    }
+    // Always use WebContainer
+    return this.updateFileWebContainer(filePath, content);
   }
 
   private async updateFileWebContainer(filePath: string, content: string): Promise<boolean> {
@@ -464,34 +496,10 @@ class UniversalAppRunner {
     }
   }
 
-  private async updateFileDaytona(
-    filePath: string,
-    content: string,
-    workspaceId: string
-  ): Promise<boolean> {
-    const daytonaClient = getDaytonaClient();
-    if (!daytonaClient) {
-      return false;
-    }
-
-    try {
-      // Use command execution to update file instead of file upload API
-      const targetPath = `/home/daytona/${filePath}`;
-      const command = `cat > "${targetPath}" << 'EOF'\n${content}\nEOF`;
-      await daytonaClient.executeCommand(workspaceId, command, '/home/daytona');
-      return true;
-    } catch (error) {
-      console.error('Failed to update file in Daytona:', error);
-      return false;
-    }
-  }
 
   async getProjectFiles(config: RunnerConfig): Promise<any[]> {
-    if (config.environment === 'daytona' && config.workspaceId) {
-      return this.getProjectFilesDaytona(config.workspaceId);
-    } else {
-      return this.getProjectFilesWebContainer();
-    }
+    // Always use WebContainer
+    return this.getProjectFilesWebContainer();
   }
 
   private async getProjectFilesWebContainer(): Promise<any[]> {
@@ -511,19 +519,7 @@ class UniversalAppRunner {
     }
   }
 
-  private async getProjectFilesDaytona(workspaceId: string): Promise<any[]> {
-    const daytonaClient = getDaytonaClient();
-    if (!daytonaClient) {
-      return [];
-    }
-
-    try {
-      return await daytonaClient.getSandboxFiles(workspaceId);
-    } catch (error) {
-      console.error('Failed to get files from Daytona:', error);
-      return [];
-    }
-  }
 }
 
-export const universalRunner = new UniversalAppRunner();
+// Initialize the runner with the webcontainer promise
+export const universalRunner = new UniversalAppRunner(webcontainer);

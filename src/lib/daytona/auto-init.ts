@@ -67,7 +67,7 @@ export async function getOrCreateDefaultSandbox(): Promise<string | null> {
         name: `app-${Date.now()}`,
         template: 'node',
         devcontainer: {
-          image: 'node:18'
+          image: 'node:20'  // Using Node.js 20 as requested
         }
       };
       console.log('🏗️ Sandbox config:', sandboxConfig);

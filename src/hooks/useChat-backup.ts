@@ -44,7 +44,6 @@ export function useChat(initialPrompt?: string, selectedModel?: string) {
   const [buildStatus, setBuildStatus] = useState<'writing' | 'installing' | 'starting' | 'ready' | null>(null);
   const [currentBuildFile, setCurrentBuildFile] = useState<string>('');
   const [buildFileProgress, setBuildFileProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
-  const [installMessage, setInstallMessage] = useState<string>('');
   
   // Debug function to force complete loading
   const forceCompleteLoading = () => {
@@ -91,31 +90,23 @@ export function useChat(initialPrompt?: string, selectedModel?: string) {
         
         // Set installing status
         setBuildStatus('installing');
-        setInstallMessage('Installing dependencies...');
         
         // Use WebContainer for running apps (no Daytona)
         console.log('📦 Starting installation and server...');
         
-        // Track when we transition to starting
-        let hasTransitionedToStarting = false;
-        
-        const runResult = await universalRunner.runApp(structure, {
+        // Listen for status changes in logs
+        const originalRunApp = universalRunner.runApp.bind(universalRunner);
+        const runResultPromise = originalRunApp(structure, {
           environment: 'webcontainer',
           port: 3000
-        }, (message: string, packageName?: string) => {
-          // Real-time install progress callback
-          console.log('📦 Install progress:', message);
-          setInstallMessage(message);
-          
-          // Transition to starting when we see completion messages
-          if (!hasTransitionedToStarting && (message.includes('added') || message.includes('up to date'))) {
-            hasTransitionedToStarting = true;
-            setTimeout(() => {
-              setBuildStatus('starting');
-              setInstallMessage('Starting development server...');
-            }, 500);
-          }
         });
+        
+        // Check for starting status  
+        setTimeout(() => {
+          setBuildStatus('starting');
+        }, 3000); // Assume we're starting after 3 seconds of installing
+        
+        const runResult = await runResultPromise;
         
         console.log('🔍 Run result details:', {
           success: runResult.success,
@@ -722,7 +713,6 @@ p {
     forceCompleteLoading,
     buildStatus,
     currentBuildFile,
-    buildFileProgress,
-    installMessage
+    buildFileProgress
   };
 }
